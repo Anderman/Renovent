@@ -8,6 +8,10 @@ struct ResetInfoStatus {
   const char *reason;
   const char *detail;
   bool crashLikely;
+  bool coreDumpPresent;
+  uint32_t coreDumpSize;
+  const char *coreDumpState;
+  const char *coreDumpReason;
 };
 
 void resetInfoSetup();

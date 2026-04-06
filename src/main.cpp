@@ -6,6 +6,7 @@
 #include "sensors_menu.h"
 #include "key_writer.h"
 #include "keypad.h"
+#include "mqtt_config.h"
 #include "ota.h"
 #include "ota/auto_update.h"
 #include "reset_info.h"
@@ -20,6 +21,7 @@ void setup()
   Serial.begin(115200);
   delay(1000);
   resetInfoSetup();
+  mqttConfigSetup();
   Serial.println();
   Serial.println("[renovent] boot");
   resetInfoPrintToSerial();

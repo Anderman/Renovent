@@ -9,6 +9,7 @@
 #include "../input_keys.h"
 #include "../keypad.h"
 #include "../key_writer.h"
+#include "../mqtt_config.h"
 #include "../ota/auto_update.h"
 #include "../parameter_definitions.h"
 #include "../reset_info.h"
@@ -19,6 +20,7 @@ WebServer server(80);
 
 namespace {
 bool g_spiffsOk = false;
+constexpr uint16_t kMaxKeyLogApiEntries = 60;
 
 const char *contentTypeForPath(const String &path) {
   if (path.endsWith(".html")) {
@@ -93,6 +95,10 @@ void handleStatus() {
   doc["resetDetail"] = resetInfoStatus.detail;
   doc["resetRawReason"] = resetInfoStatus.rawReason;
   doc["resetCrashLikely"] = resetInfoStatus.crashLikely;
+  doc["coreDumpPresent"] = resetInfoStatus.coreDumpPresent;
+  doc["coreDumpSize"] = resetInfoStatus.coreDumpSize;
+  doc["coreDumpState"] = resetInfoStatus.coreDumpState;
+  doc["coreDumpReason"] = resetInfoStatus.coreDumpReason;
   doc["displayText"] = snapshot.text;
   doc["displayCompleteFrameCount"] = displayReaderStats.completeFrameCount;
   doc["displayMissedSelectFrameCount"] = displayReaderStats.missedSelectFrameCount;
@@ -137,22 +143,6 @@ void handleStatus() {
   doc["settingWriterDisplay"] = settingWriterStatus.lastDisplayText;
   doc["settingWriterLastCompletedMs"] = settingWriterStatus.lastCompletedMs;
 
-  JsonArray keyPressLog = doc["keyPressLog"].to<JsonArray>();
-  for (uint16_t index = 0; index < keyPressLogStatus.count; ++index) {
-    KeyPressLogEntry logEntry{};
-    if (!getKeyPressLogEntryNewestFirst(index, logEntry)) {
-      continue;
-    }
-    JsonObject entry = keyPressLog.add<JsonObject>();
-    entry["event"] = logEntry.event;
-    entry["keys"] = logEntry.keys;
-    entry["mask"] = logEntry.mask;
-    entry["display"] = logEntry.display;
-    entry["relativeMs"] = logEntry.relativeMs;
-    entry["idleBeforeMs"] = logEntry.idleBeforeMs;
-    entry["releaseForMs"] = logEntry.releaseForMs;
-  }
-
   JsonArray settingsMenuEntries = doc["settingsMenuEntries"].to<JsonArray>();
   for (uint8_t index = 0; index < settingsMenuStatus.count; ++index) {
     SettingsMenuValue settingsMenuValue{};
@@ -165,6 +155,38 @@ void handleStatus() {
     entry["rawValue"] = settingsMenuValue.available ? settingsMenuValue.rawValue : "";
     entry["hasValue"] = settingsMenuValue.hasValue;
     entry["value"] = settingsMenuValue.value;
+  }
+
+  String output;
+  serializeJson(doc, output);
+  sendCorsHeaders();
+  server.send(200, "application/json", output);
+}
+
+void handleKeyPressLogGet() {
+  const KeyPressLogSummary keyPressLogStatus = getKeyPressLogSummary();
+  const uint16_t returnedKeyLogEntries = keyPressLogStatus.count > kMaxKeyLogApiEntries
+      ? kMaxKeyLogApiEntries
+      : keyPressLogStatus.count;
+
+  JsonDocument doc;
+  doc["totalCount"] = keyPressLogStatus.count;
+  doc["returnedCount"] = returnedKeyLogEntries;
+
+  JsonArray keyPressLog = doc["entries"].to<JsonArray>();
+  for (uint16_t index = 0; index < returnedKeyLogEntries; ++index) {
+    KeyPressLogEntry logEntry{};
+    if (!getKeyPressLogEntryNewestFirst(index, logEntry)) {
+      continue;
+    }
+    JsonObject entry = keyPressLog.add<JsonObject>();
+    entry["event"] = logEntry.event;
+    entry["keys"] = logEntry.keys;
+    entry["mask"] = logEntry.mask;
+    entry["display"] = logEntry.display;
+    entry["relativeMs"] = logEntry.relativeMs;
+    entry["idleBeforeMs"] = logEntry.idleBeforeMs;
+    entry["releaseForMs"] = logEntry.releaseForMs;
   }
 
   String output;
@@ -200,6 +222,20 @@ void handleSensorsMenuGet() {
     entry["value"] = sensorsMenuStatus.entries[index].value;
     entry["hasAuxValue"] = sensorsMenuStatus.entries[index].hasAuxValue;
     entry["auxValue"] = sensorsMenuStatus.entries[index].auxValue;
+  }
+
+  JsonArray values = doc["values"].to<JsonArray>();
+  for (uint8_t index = 0; index < 14; ++index) {
+    const SensorsMenuValueDefinition definition = getSensorsMenuValueDefinition(index + 1U);
+    JsonObject value = values.add<JsonObject>();
+    value["index"] = index + 1;
+    value["key"] = definition.key;
+    value["description"] = definition.description;
+    value["unit"] = definition.unit;
+    value["remark"] = definition.remark;
+    value["available"] = sensorsMenuStatus.values[index].available;
+    value["hasValue"] = sensorsMenuStatus.values[index].hasValue;
+    value["value"] = sensorsMenuStatus.values[index].value;
   }
 
   String output;
@@ -280,6 +316,54 @@ void handleSensorsMenuStart() {
   server.send(allowed ? 202 : 409, "application/json", output);
 }
 
+void handleMqttConfigGet() {
+  const MqttConfig &mqttConfig = getMqttConfig();
+
+  JsonDocument doc;
+  doc["mqttHost"] = mqttConfig.mqttHost;
+  doc["mqttPort"] = mqttConfig.mqttPort;
+  doc["mqttUser"] = mqttConfig.mqttUser;
+
+  String output;
+  serializeJson(doc, output);
+  sendCorsHeaders();
+  server.send(200, "application/json", output);
+}
+
+void handleMqttConfigPost() {
+  JsonDocument doc;
+  if (!parseJsonBody(doc)) {
+    return;
+  }
+
+  const MqttConfig &currentConfig = getMqttConfig();
+  MqttConfig nextConfig = currentConfig;
+
+  nextConfig.mqttHost = String(doc["mqttHost"] | currentConfig.mqttHost.c_str());
+  nextConfig.mqttPort = static_cast<uint16_t>(doc["mqttPort"] | currentConfig.mqttPort);
+  nextConfig.mqttUser = String(doc["mqttUser"] | currentConfig.mqttUser.c_str());
+
+  const bool hasPasswordField = !doc["mqttPassword"].isNull();
+  const String requestedPassword = String(doc["mqttPassword"] | "");
+  if (hasPasswordField && requestedPassword.length() > 0) {
+    nextConfig.mqttPassword = requestedPassword;
+  }
+
+  const bool saved = updateMqttConfig(nextConfig);
+  const MqttConfig &savedConfig = getMqttConfig();
+
+  JsonDocument response;
+  response["saved"] = saved;
+  response["mqttHost"] = savedConfig.mqttHost;
+  response["mqttPort"] = savedConfig.mqttPort;
+  response["mqttUser"] = savedConfig.mqttUser;
+
+  String output;
+  serializeJson(response, output);
+  sendCorsHeaders();
+  server.send(saved ? 200 : 500, "application/json", output);
+}
+
 void handleKeyPress() {
   JsonDocument doc;
   if (!parseJsonBody(doc)) {
@@ -333,6 +417,9 @@ void setupWebUi() {
 
   server.on("/api/parameter-definitions", HTTP_GET, handleParameterDefinitions);
   server.on("/api/status", HTTP_GET, handleStatus);
+  server.on("/api/key-press-log", HTTP_GET, handleKeyPressLogGet);
+  server.on("/api/mqtt/config", HTTP_GET, handleMqttConfigGet);
+  server.on("/api/mqtt/config", HTTP_POST, handleMqttConfigPost);
   server.on("/api/sensors-menu", HTTP_GET, handleSensorsMenuGet);
   server.on("/api/sensors-menu/start", HTTP_POST, handleSensorsMenuStart);
   server.on("/api/set-value", HTTP_POST, handleSetValue);

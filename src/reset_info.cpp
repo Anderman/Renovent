@@ -1,17 +1,24 @@
 #include "reset_info.h"
 
 #include <esp_attr.h>
+#include <esp_core_dump.h>
+#include <esp_err.h>
 #include <esp_system.h>
 
 namespace {
 RTC_DATA_ATTR uint32_t g_bootCount = 0;
+char g_coreDumpReason[160] = {0};
 
 ResetInfoStatus g_status = {
-    .bootCount = 0,
-    .rawReason = 0,
-    .reason = "unknown",
-    .detail = "reset reason unavailable",
-    .crashLikely = false,
+  .bootCount = 0,
+  .rawReason = 0,
+  .reason = "unknown",
+  .detail = "reset reason unavailable",
+  .crashLikely = false,
+  .coreDumpPresent = false,
+  .coreDumpSize = 0,
+  .coreDumpState = "not-checked",
+  .coreDumpReason = "",
 };
 
 const char *resetReasonName(esp_reset_reason_t reason) {
@@ -94,6 +101,48 @@ bool resetLooksCrashRelated(esp_reset_reason_t reason) {
       return false;
   }
 }
+
+const char *coreDumpStateName(esp_err_t err) {
+  switch (err) {
+    case ESP_OK:
+      return "present";
+    case ESP_ERR_NOT_FOUND:
+      return "not-found";
+    case ESP_ERR_INVALID_SIZE:
+      return "invalid-size";
+    case ESP_ERR_INVALID_CRC:
+      return "invalid-crc";
+    default:
+      return "error";
+  }
+}
+
+void updateCoreDumpStatus() {
+  g_coreDumpReason[0] = '\0';
+  g_status.coreDumpPresent = false;
+  g_status.coreDumpSize = 0;
+  g_status.coreDumpReason = "";
+
+  size_t coreDumpAddress = 0;
+  size_t coreDumpSize = 0;
+  const esp_err_t getErr = esp_core_dump_image_get(&coreDumpAddress, &coreDumpSize);
+  if (getErr != ESP_OK || coreDumpSize == 0) {
+    g_status.coreDumpState = coreDumpStateName(getErr);
+    return;
+  }
+
+  const esp_err_t checkErr = esp_core_dump_image_check();
+  g_status.coreDumpPresent = true;
+  g_status.coreDumpSize = static_cast<uint32_t>(coreDumpSize);
+  g_status.coreDumpState = coreDumpStateName(checkErr);
+
+#if CONFIG_ESP_COREDUMP_ENABLE_TO_FLASH && CONFIG_ESP_COREDUMP_DATA_FORMAT_ELF
+  if (esp_core_dump_get_panic_reason(g_coreDumpReason, sizeof(g_coreDumpReason)) == ESP_OK) {
+    g_status.coreDumpReason = g_coreDumpReason;
+  }
+#endif
+}
+
 }  // namespace
 
 void resetInfoSetup() {
@@ -105,6 +154,7 @@ void resetInfoSetup() {
   g_status.reason = resetReasonName(reason);
   g_status.detail = resetReasonDetail(reason);
   g_status.crashLikely = resetLooksCrashRelated(reason);
+  updateCoreDumpStatus();
 }
 
 void resetInfoPrintToSerial() {
@@ -112,6 +162,13 @@ void resetInfoPrintToSerial() {
   Serial.printf("[renovent] last reset: %s (%lu)\n", g_status.reason,
                 static_cast<unsigned long>(g_status.rawReason));
   Serial.printf("[renovent] reset detail: %s\n", g_status.detail);
+  Serial.printf("[renovent] coredump: %s, present=%s, size=%lu\n",
+                g_status.coreDumpState,
+                g_status.coreDumpPresent ? "yes" : "no",
+                static_cast<unsigned long>(g_status.coreDumpSize));
+  if (g_status.coreDumpReason != nullptr && g_status.coreDumpReason[0] != '\0') {
+    Serial.printf("[renovent] coredump reason: %s\n", g_status.coreDumpReason);
+  }
   if (g_status.crashLikely) {
     Serial.println("[renovent] crash hint: inspect the serial panic output for a backtrace");
   }

@@ -37,6 +37,7 @@ namespace
     constexpr uint8_t kFirstSensorsStep = 1;
     constexpr uint8_t kLastSensorsStep = 13;
     constexpr uint8_t kSensorsStepCount = kLastSensorsStep - kFirstSensorsStep + 1U;
+    constexpr uint8_t kLogicalValueCount = 14;
     constexpr uint8_t kNoCaptureStep = 0;
     constexpr uint32_t kAutoScanIntervalMs = 60000;
     constexpr uint32_t kStepDisplayTimeoutMs = 2000;
@@ -55,6 +56,23 @@ namespace
         {"u0.0", "Status vorstbeveiliging", "0 niet, 1 t/m 4 onbalans, 5 toevoerventilator uit."},
         {"st.9", "Temperatuur naar buiten", "Wanneer voeler niet is aangesloten toont de unit een vaste fallbackwaarde."},
         {"Pt.18", "Temperatuur naar binnen", "Wanneer voeler niet is aangesloten toont de unit een vaste fallbackwaarde."},
+    };
+
+    constexpr SensorsMenuValueDefinition kValueDefinitions[kLogicalValueCount] = {
+        {"fan_mode", "Actuele stand", "", "Standenschakelaar 1, 2 of 3."},
+        {"exhaust_setpoint", "Ingesteld afvoervolume", "m3/h", "Ingesteld afvoervolume [m3/h]."},
+        {"operation_code", "Meldcode bedrijfssituatie", "", "C0 geen melding, C3/C6 constant druk, C7 correctie maximale luchtvolume."},
+        {"bypass_status", "Status bypass", "", "0 dicht, 1 automatisch, 2 toevoer minimaal."},
+        {"outside_temperature", "Temperatuur van buiten", "C", "Temperatuur van buiten in graden Celsius."},
+        {"inside_temperature", "Temperatuur van binnen", "C", "Temperatuur van binnen in graden Celsius."},
+        {"input_status", "n.v.t.", "", "Volgens handleiding niet van toepassing."},
+        {"supply_flow", "Actueel toevoervolume", "m3/h", "Actueel toevoervolume [m3/h]."},
+        {"exhaust_flow", "Actueel afvoervolume", "m3/h", "Actueel afvoervolume [m3/h]."},
+        {"supply_pressure", "Actuele druk toevoerkanaal", "Pa", "Actuele druk [Pa]."},
+        {"exhaust_pressure", "Actuele druk afvoerkanaal", "Pa", "Actuele druk [Pa]."},
+        {"frost_protection", "Status vorstbeveiliging", "", "0 niet, 1 t/m 4 onbalans, 5 toevoerventilator uit."},
+        {"outgoing_temperature", "Temperatuur naar buiten", "C", "Fallbackwaarde als voeler niet is aangesloten."},
+        {"incoming_temperature", "Temperatuur naar binnen", "C", "Fallbackwaarde als voeler niet is aangesloten."},
     };
 
     constexpr SensorsMenuStep kReadScript[] = {
@@ -110,6 +128,100 @@ namespace
         detail[0] = '\0';
     }
 
+    bool parseFirstAndLastNumber(const char *rawValue, int32_t &firstValue, int32_t &lastValue)
+    {
+        int32_t currentValue = 0;
+        bool inNumber = false;
+        bool sawNumber = false;
+        bool firstCaptured = false;
+
+        for (uint8_t index = 0; rawValue[index] != '\0'; ++index)
+        {
+            const char current = rawValue[index];
+            if (current >= '0' && current <= '9')
+            {
+                if (!inNumber)
+                {
+                    currentValue = 0;
+                    inNumber = true;
+                }
+                currentValue = currentValue * 10 + (current - '0');
+                sawNumber = true;
+                continue;
+            }
+
+            if (inNumber)
+            {
+                if (!firstCaptured)
+                {
+                    firstValue = currentValue;
+                    firstCaptured = true;
+                }
+                lastValue = currentValue;
+                inNumber = false;
+            }
+        }
+
+        if (inNumber)
+        {
+            if (!firstCaptured)
+            {
+                firstValue = currentValue;
+            }
+            lastValue = currentValue;
+        }
+
+        return sawNumber;
+    }
+
+    void clearLogicalValues(SensorsMenuValueItem (&values)[kLogicalValueCount])
+    {
+        for (uint8_t index = 0; index < kLogicalValueCount; ++index)
+        {
+            values[index] = SensorsMenuValueItem{};
+        }
+    }
+
+    void setLogicalValue(SensorsMenuValueItem (&values)[kLogicalValueCount], uint8_t index, bool available, bool hasValue, int32_t value)
+    {
+        if (index >= kLogicalValueCount)
+        {
+            return;
+        }
+
+        values[index].available = available;
+        values[index].hasValue = hasValue;
+        values[index].value = hasValue ? value : 0;
+    }
+
+    void buildLogicalValues(const SensorsMenuCapturedEntry (&entries)[kSensorsStepCount], SensorsMenuValueItem (&values)[kLogicalValueCount])
+    {
+        clearLogicalValues(values);
+
+        const SensorsMenuCapturedEntry &step1 = entries[0];
+        if (step1.available)
+        {
+            int32_t firstValue = 0;
+            int32_t lastValue = 0;
+            if (parseFirstAndLastNumber(step1.rawValue, firstValue, lastValue))
+            {
+                setLogicalValue(values, 0, true, true, firstValue);
+                setLogicalValue(values, 1, true, true, lastValue);
+            }
+            else
+            {
+                setLogicalValue(values, 0, true, false, 0);
+                setLogicalValue(values, 1, true, false, 0);
+            }
+        }
+
+        for (uint8_t stepIndex = 1; stepIndex < kSensorsStepCount; ++stepIndex)
+        {
+            const SensorsMenuCapturedEntry &entry = entries[stepIndex];
+            setLogicalValue(values, stepIndex + 1U, entry.available, entry.hasValue, entry.value);
+        }
+    }
+
     void captureCurrentStepValue(uint8_t step, const char *displayText)
     {
         if (step < kFirstSensorsStep || step > kLastSensorsStep)
@@ -131,6 +243,19 @@ namespace
         int32_t parsedValue = 0;
         entry.hasValue = parseLastNumber(displayText, parsedValue);
         entry.value = entry.hasValue ? parsedValue : 0;
+
+        if (step == 1)
+        {
+            int32_t firstValue = 0;
+            int32_t lastValue = 0;
+            if (parseFirstAndLastNumber(displayText, firstValue, lastValue))
+            {
+                entry.hasValue = true;
+                entry.value = firstValue;
+                entry.hasAuxValue = true;
+                entry.auxValue = lastValue;
+            }
+        }
     }
 
     void startStep(uint32_t now, KeyMask keyMask)
@@ -309,6 +434,7 @@ SensorsMenuStatus getSensorsMenuStatus()
             status.entries[index] = g_scanState.entries[index];
         }
     }
+    buildLogicalValues(status.entries, status.values);
     portEXIT_CRITICAL(&g_menuMux);
 
     return status;
@@ -322,4 +448,14 @@ SensorsMenuDefinition getSensorsMenuDefinition(uint8_t step)
     }
 
     return kMenuDefinitions[step - 1U];
+}
+
+SensorsMenuValueDefinition getSensorsMenuValueDefinition(uint8_t index)
+{
+    if (index == 0 || index > kLogicalValueCount)
+    {
+        return {"", "", "", ""};
+    }
+
+    return kValueDefinitions[index - 1U];
 }

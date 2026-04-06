@@ -12,9 +12,22 @@ struct SensorsMenuCapturedEntry {
   int32_t auxValue;
 };
 
+struct SensorsMenuValueItem {
+  bool available;
+  bool hasValue;
+  int32_t value;
+};
+
 struct SensorsMenuDefinition {
   const char *example;
   const char *description;
+  const char *remark;
+};
+
+struct SensorsMenuValueDefinition {
+  const char *key;
+  const char *description;
+  const char *unit;
   const char *remark;
 };
 
@@ -26,6 +39,7 @@ struct SensorsMenuStatus {
   char phase[24];
   char lastDisplayText[9];
   SensorsMenuCapturedEntry entries[13];
+  SensorsMenuValueItem values[14];
 };
 
 void sensorsMenuSetup();
@@ -36,3 +50,4 @@ bool sensorsMenuIsBusy();
 bool sensorsMenuAutoScanEnabled();
 SensorsMenuStatus getSensorsMenuStatus();
 SensorsMenuDefinition getSensorsMenuDefinition(uint8_t step);
+SensorsMenuValueDefinition getSensorsMenuValueDefinition(uint8_t index);
