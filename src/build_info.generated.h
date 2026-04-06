@@ -1,0 +1,3 @@
+#pragma once
+
+#define RENOVENT_BUILD_ID "20260406T152024Z"

@@ -1,0 +1,4 @@
+(fp_lib_table
+  (version 7)
+  (lib (name "123")(type "KiCad")(uri "C:/IT/XiYiang/Resistant/123.pretty")(options "")(descr ""))
+)

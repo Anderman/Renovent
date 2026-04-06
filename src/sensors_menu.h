@@ -1,0 +1,38 @@
+#pragma once
+
+#include <Arduino.h>
+
+struct SensorsMenuCapturedEntry {
+  bool available;
+  char rawValue[9];
+  char detail[32];
+  bool hasValue;
+  int32_t value;
+  bool hasAuxValue;
+  int32_t auxValue;
+};
+
+struct SensorsMenuDefinition {
+  const char *example;
+  const char *description;
+  const char *remark;
+};
+
+struct SensorsMenuStatus {
+  bool running;
+  bool done;
+  uint8_t currentStep;
+  uint32_t lastCompletedMs;
+  char phase[24];
+  char lastDisplayText[9];
+  SensorsMenuCapturedEntry entries[13];
+};
+
+void sensorsMenuSetup();
+void sensorsMenuLoop();
+void startSensorsMenuScan();
+void stopSensorsMenuScan();
+bool sensorsMenuIsBusy();
+bool sensorsMenuAutoScanEnabled();
+SensorsMenuStatus getSensorsMenuStatus();
+SensorsMenuDefinition getSensorsMenuDefinition(uint8_t step);
