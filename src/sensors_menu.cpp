@@ -83,6 +83,7 @@ namespace
     char g_lastCompletedDisplayText[9] = {0};
     uint32_t g_lastCompletedMs = 0;
     uint32_t g_lastScanStartedMs = 0;
+    bool g_startupScanPending = false;
 
     bool autoScanAllowed()
     {
@@ -229,13 +230,13 @@ namespace
 void sensorsMenuSetup()
 {
     stopSensorsMenuScan();
+    g_lastScanStartedMs = millis();
+    g_startupScanPending = autoScanAllowed();
 
     if (!autoScanAllowed())
     {
         return;
     }
-
-    g_lastScanStartedMs = millis() - kAutoScanIntervalMs;
 }
 
 void sensorsMenuLoop()
@@ -244,7 +245,11 @@ void sensorsMenuLoop()
 
     if (!g_scanState.running)
     {
-        if (autoScanAllowed() && static_cast<uint32_t>(now - g_lastScanStartedMs) >= kAutoScanIntervalMs)
+        if (g_startupScanPending)
+        {
+            startSensorsMenuScan();
+        }
+        else if (autoScanAllowed() && static_cast<uint32_t>(now - g_lastScanStartedMs) >= kAutoScanIntervalMs)
         {
             startSensorsMenuScan();
         }
@@ -261,6 +266,8 @@ void startSensorsMenuScan()
         return;
     }
 
+    g_lastScanStartedMs = millis();
+    g_startupScanPending = false;
     g_scanState.running = true;
 }
 

@@ -5,7 +5,9 @@
       "label": "PlatformIO: Build",
       "type": "shell",
       "command": "pio",
-      "args": ["run"],
+      "args": [
+        "run"
+      ],
       "group": "build",
       "problemMatcher": []
     },
@@ -13,7 +15,11 @@
       "label": "PlatformIO: Upload Firmware",
       "type": "shell",
       "command": "pio",
-      "args": ["run", "-t", "upload"],
+      "args": [
+        "run",
+        "-t",
+        "upload"
+      ],
       "group": "build",
       "problemMatcher": []
     },
@@ -21,7 +27,11 @@
       "label": "PlatformIO: Build WebUI FS",
       "type": "shell",
       "command": "pio",
-      "args": ["run", "-t", "buildfs"],
+      "args": [
+        "run",
+        "-t",
+        "buildfs"
+      ],
       "group": "build",
       "problemMatcher": []
     },
@@ -29,7 +39,11 @@
       "label": "PlatformIO: Upload WebUI FS",
       "type": "shell",
       "command": "pio",
-      "args": ["run", "-t", "uploadfs"],
+      "args": [
+        "run",
+        "-t",
+        "uploadfs"
+      ],
       "group": "build",
       "problemMatcher": []
     },
@@ -37,7 +51,10 @@
       "label": "PlatformIO: Serial Monitor",
       "type": "shell",
       "command": "pio",
-      "args": ["device", "monitor"],
+      "args": [
+        "device",
+        "monitor"
+      ],
       "problemMatcher": []
     }
   ]

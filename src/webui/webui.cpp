@@ -287,14 +287,20 @@ void handleKeyPress() {
   }
 
   const int requestedMask = doc["mask"] | 0;
+  const uint32_t durationMs = doc["durationMs"] | 0;
   const bool allowed = requestedMask >= 0 && requestedMask <= 15;
   if (allowed) {
-    pressKeys(static_cast<uint8_t>(requestedMask));
+    if (durationMs > 0) {
+      pulseKeys(static_cast<uint8_t>(requestedMask), durationMs);
+    } else {
+      pressKeys(static_cast<uint8_t>(requestedMask));
+    }
   }
 
   JsonDocument response;
   response["accepted"] = allowed;
   response["mask"] = allowed ? requestedMask : 0;
+  response["durationMs"] = allowed ? durationMs : 0;
 
   String output;
   serializeJson(response, output);

@@ -16,6 +16,7 @@ namespace
   portMUX_TYPE g_keyWriterMux = portMUX_INITIALIZER_UNLOCKED;
   volatile uint8_t g_injectedKeys = kKeyNone;
   uint8_t g_loggedActiveMask = kKeyNone;
+  uint32_t g_autoReleaseDeadlineMs = 0;
   uint32_t g_cycleStartedMs = 0;
   uint32_t g_releaseStartedMs = 0;
   KeyPressLogEntry g_logEntries[kMaxLogEntries] = {};
@@ -124,7 +125,21 @@ void keyWriterSetup()
 
 void keyWriterLoop()
 {
-  // Key output is now driven directly from the display-reader ISR.
+  bool shouldRelease = false;
+
+  portENTER_CRITICAL(&g_keyWriterMux);
+  if (g_autoReleaseDeadlineMs != 0 &&
+      static_cast<int32_t>(millis() - g_autoReleaseDeadlineMs) >= 0)
+  {
+    g_autoReleaseDeadlineMs = 0;
+    shouldRelease = true;
+  }
+  portEXIT_CRITICAL(&g_keyWriterMux);
+
+  if (shouldRelease)
+  {
+    pressKeys(kKeyNone);
+  }
 }
 
 void pressKeys(uint8_t activeKeys)
@@ -135,6 +150,10 @@ void pressKeys(uint8_t activeKeys)
   if (g_loggedActiveMask == activeKeys)
   {
     g_injectedKeys = activeKeys;
+    if (activeKeys == kKeyNone)
+    {
+      g_autoReleaseDeadlineMs = 0;
+    }
     portEXIT_CRITICAL(&g_keyWriterMux);
     return;
   }
@@ -156,6 +175,22 @@ void pressKeys(uint8_t activeKeys)
   }
 
   g_injectedKeys = activeKeys;
+  g_autoReleaseDeadlineMs = 0;
+  portEXIT_CRITICAL(&g_keyWriterMux);
+}
+
+void pulseKeys(uint8_t activeKeys, uint32_t holdMs)
+{
+  if (activeKeys == kKeyNone || holdMs == 0)
+  {
+    pressKeys(activeKeys);
+    return;
+  }
+
+  pressKeys(activeKeys);
+
+  portENTER_CRITICAL(&g_keyWriterMux);
+  g_autoReleaseDeadlineMs = millis() + holdMs;
   portEXIT_CRITICAL(&g_keyWriterMux);
 }
 
