@@ -5,7 +5,6 @@
 .pio/
 .pioenvs/
 .piolibdeps/
-data/
 
 # Env / secrets
 .env

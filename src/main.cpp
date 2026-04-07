@@ -7,6 +7,7 @@
 #include "key_writer.h"
 #include "keypad.h"
 #include "mqtt_config.h"
+#include "mqtt_discovery.h"
 #include "ota.h"
 #include "ota/auto_update.h"
 #include "reset_info.h"
@@ -22,6 +23,7 @@ void setup()
   delay(1000);
   resetInfoSetup();
   mqttConfigSetup();
+  mqttDiscoverySetup();
   Serial.println();
   Serial.println("[renovent] boot");
   resetInfoPrintToSerial();
@@ -58,5 +60,6 @@ void loop()
   otaLoop();
   autoUpdateLoop();
   webUiLoop();
+  mqttDiscoveryLoop();
   wifiManagerLoop();
 }

@@ -10,6 +10,7 @@
 #include "../keypad.h"
 #include "../key_writer.h"
 #include "../mqtt_config.h"
+#include "../mqtt_discovery.h"
 #include "../ota/auto_update.h"
 #include "../parameter_definitions.h"
 #include "../reset_info.h"
@@ -320,6 +321,7 @@ void handleMqttConfigGet() {
   const MqttConfig &mqttConfig = getMqttConfig();
 
   JsonDocument doc;
+  doc["mqttNodeId"] = mqttConfig.mqttNodeId;
   doc["mqttHost"] = mqttConfig.mqttHost;
   doc["mqttPort"] = mqttConfig.mqttPort;
   doc["mqttUser"] = mqttConfig.mqttUser;
@@ -339,6 +341,7 @@ void handleMqttConfigPost() {
   const MqttConfig &currentConfig = getMqttConfig();
   MqttConfig nextConfig = currentConfig;
 
+  nextConfig.mqttNodeId = String(doc["mqttNodeId"] | currentConfig.mqttNodeId.c_str());
   nextConfig.mqttHost = String(doc["mqttHost"] | currentConfig.mqttHost.c_str());
   nextConfig.mqttPort = static_cast<uint16_t>(doc["mqttPort"] | currentConfig.mqttPort);
   nextConfig.mqttUser = String(doc["mqttUser"] | currentConfig.mqttUser.c_str());
@@ -351,9 +354,13 @@ void handleMqttConfigPost() {
 
   const bool saved = updateMqttConfig(nextConfig);
   const MqttConfig &savedConfig = getMqttConfig();
+  if (saved) {
+    mqttDiscoveryConfigChanged();
+  }
 
   JsonDocument response;
   response["saved"] = saved;
+  response["mqttNodeId"] = savedConfig.mqttNodeId;
   response["mqttHost"] = savedConfig.mqttHost;
   response["mqttPort"] = savedConfig.mqttPort;
   response["mqttUser"] = savedConfig.mqttUser;

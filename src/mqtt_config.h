@@ -3,6 +3,7 @@
 #include <Arduino.h>
 
 struct MqttConfig {
+  String mqttNodeId;
   String mqttHost;
   uint16_t mqttPort = 1883;
   String mqttUser;

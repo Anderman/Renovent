@@ -75,6 +75,7 @@ namespace
     uint8_t g_lastCompletedCount = 0;
     char g_lastCompletedDisplayText[9] = {0};
     uint32_t g_lastCompletedMs = 0;
+    bool g_startupReadPending = false;
 
     const char *currentPhaseName()
     {
@@ -211,11 +212,10 @@ namespace
         std::strncpy(entry.key, g_state.currentEntryKey, sizeof(entry.key) - 1);
         entry.key[sizeof(entry.key) - 1] = '\0';
         copyDisplayText(entry.rawValue, displayText);
-
         int32_t parsedValue = 0;
         entry.hasValue = parseLastNumber(displayText, parsedValue);
         entry.value = entry.hasValue ? parsedValue : 0;
-        return true;
+        return entry.hasValue;
     }
 
     void pressKeys(uint32_t now, KeyMask keyMask)
@@ -261,6 +261,7 @@ namespace
         g_lastCompletedMs = millis();
         portEXIT_CRITICAL(&g_userSettingsMux);
 
+        g_startupReadPending = false;
         g_state = SettingsState{};
     }
 
@@ -391,12 +392,17 @@ namespace
 void settingsMenuSetup()
 {
     g_state = SettingsState{};
+    g_startupReadPending = true;
 }
 
 void settingsMenuLoop()
 {
     if (!g_state.running)
     {
+        if (g_startupReadPending)
+        {
+            requestSettingsMenuRead();
+        }
         return;
     }
     runCurrentStep(millis());

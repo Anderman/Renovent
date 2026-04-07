@@ -120,6 +120,8 @@ namespace
       return 'U'; // U (User instelling)
     case kSegmentD | kSegmentE | kSegmentF:
       return 'L'; // L FIL
+    case kSegmentG:
+      return '-';
     default:
       return '?';
     }

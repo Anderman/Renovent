@@ -46,39 +46,92 @@ bool startsWithDisplay(const char *actual, const char *expectedPrefix)
 
     return true;
 }
-
+// Parses the last numeric token from the display into the internal fixed-point
+// integer representation used by the firmware.
+// Examples with 1 decimal precision on the display:
+// .5   -> 5
+// 5.   -> -5
+// -10.5. -> -105
+// - 1.5. -> -15
 bool parseLastNumber(const char *rawValue, int32_t &value)
 {
-    int32_t currentValue = 0;
-    bool inNumber = false;
-    bool sawNumber = false;
+    if (rawValue == nullptr)
+    {
+        return false;
+    }
 
-    for (uint8_t index = 0; rawValue[index] != '\0'; ++index)
+    char compact[16] = {0};
+    uint8_t compactLength = 0;
+    for (uint8_t index = 0; rawValue[index] != '\0' && compactLength < sizeof(compact) - 1U; ++index)
     {
         const char current = rawValue[index];
-        if (current >= '0' && current <= '9')
+        if (current == ' ')
         {
-            if (!inNumber)
-            {
-                currentValue = 0;
-                inNumber = true;
-            }
-            currentValue = currentValue * 10 + (current - '0');
-            sawNumber = true;
             continue;
         }
 
-        if (inNumber)
+        compact[compactLength++] = current;
+    }
+    compact[compactLength] = '\0';
+
+    int8_t tokenEnd = -1;
+    for (int8_t index = static_cast<int8_t>(compactLength) - 1; index >= 0; --index)
+    {
+        const char current = compact[index];
+        if ((current >= '0' && current <= '9') || current == '.' || current == '-')
         {
-            value = currentValue;
-            inNumber = false;
+            tokenEnd = index;
+            break;
         }
     }
 
-    if (inNumber)
+    if (tokenEnd < 0)
     {
-        value = currentValue;
+        return false;
     }
 
-    return sawNumber;
+    int8_t tokenStart = tokenEnd;
+    while (tokenStart > 0)
+    {
+        const char current = compact[tokenStart - 1];
+        if ((current >= '0' && current <= '9') || current == '.' || current == '-')
+        {
+            --tokenStart;
+            continue;
+        }
+
+        break;
+    }
+
+    bool negative = false;
+    int32_t parsedValue = 0;
+    bool sawDigit = false;
+    for (int8_t index = tokenStart; index <= tokenEnd; ++index)
+    {
+        const char current = compact[index];
+        if (current >= '0' && current <= '9')
+        {
+            parsedValue = parsedValue * 10 + (current - '0');
+            sawDigit = true;
+            continue;
+        }
+
+        if (current == '-')
+        {
+            negative = true;
+        }
+    }
+
+    if (!sawDigit)
+    {
+        return false;
+    }
+
+    if (compact[tokenEnd] == '.')
+    {
+        negative = true;
+    }
+
+    value = negative ? -parsedValue : parsedValue;
+    return true;
 }
