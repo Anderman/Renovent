@@ -12,7 +12,7 @@ namespace {
 const char *const kVersionFilePath = "/version.txt";
 
 AutoUpdateStatus g_status = {
-  String(), String(), String("idle"), 0, 0, String("Nog geen check uitgevoerd")};
+  String(), String(), String("idle"), 0, 0, String("Nog geen check uitgevoerd"), String(), String(), 0, String(), String()};
 
 unsigned long g_nextCheckMillis = 0;
 
@@ -47,6 +47,15 @@ void refreshCurrentBuildIds() {
 void scheduleNextCheck(unsigned long delayMs) {
   g_nextCheckMillis = millis() + delayMs;
   g_status.nextCheckMillis = g_nextCheckMillis;
+}
+
+void refreshLastHttpStatus() {
+  const UpdateHttpCall &lastHttpCall = getLastUpdateHttpCall();
+  g_status.lastHttpOperation = lastHttpCall.operation;
+  g_status.lastHttpUrl = lastHttpCall.url;
+  g_status.lastHttpCode = lastHttpCall.httpCode;
+  g_status.lastHttpDetail = lastHttpCall.detail;
+  g_status.httpHistory = getRecentUpdateHttpCallsText();
 }
 
 void beginUpdateCheck(unsigned long startedMs) {
@@ -154,6 +163,7 @@ void queueAutoUpdateCheck() {
 }
 
 const AutoUpdateStatus &getAutoUpdateStatus() {
+  refreshLastHttpStatus();
   return g_status;
 }
 

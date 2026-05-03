@@ -7,6 +7,13 @@ struct RemoteArtifact {
   String downloadUrl;
 };
 
+struct UpdateHttpCall {
+  String operation;
+  String url;
+  int httpCode;
+  String detail;
+};
+
 using UpdateErrorReporter = void (*)(const String &message);
 
 bool fetchLatestArtifactsManifest(const char *manifestUrl,
@@ -21,3 +28,6 @@ bool applyRemoteArtifact(const RemoteArtifact &artifact,
                         int updateCommand,
                         const char *userAgent,
                         UpdateErrorReporter reportError);
+
+const UpdateHttpCall &getLastUpdateHttpCall();
+String getRecentUpdateHttpCallsText();

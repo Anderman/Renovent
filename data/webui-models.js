@@ -80,6 +80,12 @@ export function mapStatusSnapshot(status) {
 	const otaSummary = [status.autoUpdateState ?? "--", lastCheckText, nextCheckText]
 		.filter((value) => value && value !== "--")
 		.join(" / ");
+	const otaHttpCall = status.autoUpdateLastHttpUrl
+		? [status.autoUpdateLastHttpOperation ?? "http", status.autoUpdateLastHttpUrl].filter(Boolean).join(" ")
+		: "--";
+	const otaHttpResult = status.autoUpdateLastHttpCode > 0
+		? `HTTP ${status.autoUpdateLastHttpCode}${status.autoUpdateLastHttpDetail ? ` / ${status.autoUpdateLastHttpDetail}` : ""}`
+		: (status.autoUpdateLastHttpDetail ?? "--");
 	const coreDumpText = status.coreDumpPresent
 		? `${status.coreDumpState ?? "present"} (${status.coreDumpSize ?? 0} B)`
 		: (status.coreDumpState ?? "not-found");
@@ -117,6 +123,9 @@ export function mapStatusSnapshot(status) {
 			["Laatste display", status.loggedDisplayText ?? "--"],
 			["OTA", otaSummary || "--"],
 			["OTA resultaat", status.autoUpdateLastResult ?? "--"],
+			["OTA call", otaHttpCall],
+			["OTA HTTP", otaHttpResult],
+			["OTA log", status.autoUpdateHttpHistory ?? "--"],
 			["Core dump", coreDumpText],
 			["Backtrace", coreDumpBacktraceText]
 		]
