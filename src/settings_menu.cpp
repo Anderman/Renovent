@@ -216,7 +216,11 @@ namespace
         int32_t parsedValue = 0;
         entry.hasValue = parseLastNumber(displayText, parsedValue);
         entry.value = entry.hasValue ? parsedValue : 0;
-        return entry.hasValue;
+
+        // Some entries, such as U7, can expose symbolic values like "A".
+        // Those entries are still valid scan results and should not stall the
+        // state machine waiting for a numeric parse that will never succeed.
+        return true;
     }
 
     void pressKeys(uint32_t now, KeyMask keyMask)
