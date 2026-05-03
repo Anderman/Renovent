@@ -42,7 +42,7 @@ namespace
         char lastDisplayText[9] = {0};
         char firstEntryKey[4] = {0};
         char currentEntryKey[4] = {0};
-        SettingValue values[40] = {};
+        SettingValue values[64] = {};
     };
 
     struct SettingStep
@@ -54,7 +54,7 @@ namespace
         SettingsAction action = SettingsAction::ReadCurrentEntry;
     };
 
-    constexpr uint8_t kMaxSettingsMenuCount = 40;
+    constexpr uint8_t kMaxSettingsMenuCount = 64;
     constexpr uint32_t kStepDisplayTimeoutMs = 2000;
     constexpr uint8_t kOpenEntryStepIndex = 2;
     constexpr uint8_t kExitMenuStepIndex = 5;
@@ -72,7 +72,7 @@ namespace
 
     portMUX_TYPE g_userSettingsMux = portMUX_INITIALIZER_UNLOCKED;
     SettingsState g_state;
-    SettingValue g_lastCompletedValues[40] = {};
+    SettingValue g_lastCompletedValues[64] = {};
     uint8_t g_lastCompletedCount = 0;
     char g_lastCompletedDisplayText[9] = {0};
     uint32_t g_lastCompletedMs = 0;
