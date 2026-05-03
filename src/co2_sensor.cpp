@@ -163,8 +163,6 @@ bool readMeasurement() {
     return false;
   }
 
-  g_connected = true;
-  g_measuring = true;
   g_dataValid = true;
   g_co2Ppm = words[0];
   g_temperatureC = -45.0f + (175.0f * static_cast<float>(words[1]) / 65536.0f);
