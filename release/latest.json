@@ -1,0 +1,11 @@
+{
+  "generatedAt": "20260503T144306Z",
+  "firmware": {
+    "buildId": "20260503T144306Z",
+    "downloadUrl": "https://raw.githubusercontent.com/Anderman/Renovent/main/release/firmware/20260503T144306Z.bin"
+  },
+  "spiffs": {
+    "buildId": "20260503T144306Z",
+    "downloadUrl": "https://raw.githubusercontent.com/Anderman/Renovent/main/release/spiffs/20260503T144306Z.bin"
+  }
+}
