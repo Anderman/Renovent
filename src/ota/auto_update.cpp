@@ -58,8 +58,7 @@ void scheduleNextCheck(unsigned long delayMs) {
 }
 
 void performUpdateCheck() {
-  if (!autoUpdateConfig::kEnabled || autoUpdateConfig::kGitHubOwner[0] == '\0' ||
-      autoUpdateConfig::kGitHubRepo[0] == '\0') {
+  if (!autoUpdateConfig::kEnabled || autoUpdateConfig::kManifestUrl[0] == '\0') {
     g_status.lastCheckResult = "Auto-update is uitgeschakeld";
     setState("disabled");
     return;
@@ -82,8 +81,7 @@ void performUpdateCheck() {
 
   RemoteArtifact firmwareArtifact;
   RemoteArtifact spiffsArtifact;
-  if (!fetchLatestArtifactsManifest(autoUpdateConfig::kGitHubOwner, autoUpdateConfig::kGitHubRepo,
-                                    autoUpdateConfig::kGitHubRef, autoUpdateConfig::kUserAgent,
+  if (!fetchLatestArtifactsManifest(autoUpdateConfig::kManifestUrl, autoUpdateConfig::kUserAgent,
                                     firmwareArtifact, spiffsArtifact, setError)) {
     g_status.lastCheckDurationMs = millis() - startedMs;
     return;

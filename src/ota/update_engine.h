@@ -9,9 +9,7 @@ struct RemoteArtifact {
 
 using UpdateErrorReporter = void (*)(const String &message);
 
-bool fetchLatestArtifactsManifest(const char *owner,
-                                  const char *repo,
-                                  const char *ref,
+bool fetchLatestArtifactsManifest(const char *manifestUrl,
                                   const char *userAgent,
                                   RemoteArtifact &firmwareArtifact,
                                   RemoteArtifact &spiffsArtifact,

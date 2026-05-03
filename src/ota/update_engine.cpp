@@ -10,9 +10,6 @@
 #include <WiFiClient.h>
 
 namespace {
-const char *const kGitHubApiHost = "https://api.github.com/repos/";
-const char *const kGitHubRawHost = "https://raw.githubusercontent.com/";
-
 String formatHttpFailure(const char *label, const String &url, int httpCode) {
   String message = label;
   message += ": HTTP ";
@@ -55,30 +52,6 @@ String extractBuildId(const String &fileName) {
 
 bool isNewerBuildId(const String &candidate, const String &current) {
   return candidate.length() > 0 && (current.length() == 0 || candidate > current);
-}
-
-String getContentsUrl(const char *owner, const char *repo, const char *ref, const char *path) {
-  String url = kGitHubApiHost;
-  url += owner;
-  url += "/";
-  url += repo;
-  url += "/contents/";
-  url += path;
-  url += "?ref=";
-  url += ref;
-  return url;
-}
-
-String getRawFileUrl(const char *owner, const char *repo, const char *ref, const char *path) {
-  String url = kGitHubRawHost;
-  url += owner;
-  url += "/";
-  url += repo;
-  url += "/";
-  url += ref;
-  url += "/";
-  url += path;
-  return url;
 }
 
 bool readArtifactFromManifest(JsonVariantConst value,
@@ -127,24 +100,22 @@ bool beginRequest(HTTPClient &http,
 }
 }  // namespace
 
-bool fetchLatestArtifactsManifest(const char *owner,
-                                  const char *repo,
-                                  const char *ref,
+bool fetchLatestArtifactsManifest(const char *manifestUrl,
                                   const char *userAgent,
                                   RemoteArtifact &firmwareArtifact,
                                   RemoteArtifact &spiffsArtifact,
                                   UpdateErrorReporter reportError) {
-  const String manifestUrl = getRawFileUrl(owner, repo, ref, "release/latest.json");
+  const String manifestUrlString = manifestUrl;
   WiFiClientSecure client;
   HTTPClient http;
-  if (!beginRequest(http, client, manifestUrl, "application/json",
+  if (!beginRequest(http, client, manifestUrlString, "application/json",
                     userAgent, reportError)) {
     return false;
   }
 
   const int httpCode = http.GET();
   if (httpCode != HTTP_CODE_OK) {
-    reportError(formatHttpFailure("Manifest fetch failed", manifestUrl, httpCode));
+    reportError(formatHttpFailure("Manifest fetch failed", manifestUrlString, httpCode));
     http.end();
     return false;
   }
@@ -153,17 +124,17 @@ bool fetchLatestArtifactsManifest(const char *owner,
   const DeserializationError jsonError = deserializeJson(doc, http.getString());
   http.end();
   if (jsonError) {
-    reportError(String("Failed to parse manifest: url=") + manifestUrl + " error=" + jsonError.c_str());
+    reportError(String("Failed to parse manifest: url=") + manifestUrlString + " error=" + jsonError.c_str());
     return false;
   }
 
   if (!doc.is<JsonObject>()) {
-    reportError(String("Unexpected manifest payload: url=") + manifestUrl);
+    reportError(String("Unexpected manifest payload: url=") + manifestUrlString);
     return false;
   }
 
-  return readArtifactFromManifest(doc["firmware"], "firmware", firmwareArtifact, manifestUrl, reportError) &&
-         readArtifactFromManifest(doc["spiffs"], "spiffs", spiffsArtifact, manifestUrl, reportError);
+  return readArtifactFromManifest(doc["firmware"], "firmware", firmwareArtifact, manifestUrlString, reportError) &&
+         readArtifactFromManifest(doc["spiffs"], "spiffs", spiffsArtifact, manifestUrlString, reportError);
 }
 
 String readSpiffsBuildId(const char *versionFilePath) {
