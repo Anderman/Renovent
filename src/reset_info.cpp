@@ -1,5 +1,7 @@
 #include "reset_info.h"
 
+#include <inttypes.h>
+
 #include <esp_attr.h>
 #include <esp_core_dump.h>
 #include <esp_err.h>
@@ -8,6 +10,7 @@
 namespace {
 RTC_DATA_ATTR uint32_t g_bootCount = 0;
 char g_coreDumpReason[160] = {0};
+char g_coreDumpBacktrace[256] = {0};
 
 ResetInfoStatus g_status = {
   .bootCount = 0,
@@ -19,7 +22,32 @@ ResetInfoStatus g_status = {
   .coreDumpSize = 0,
   .coreDumpState = "not-checked",
   .coreDumpReason = "",
+  .coreDumpBacktrace = "",
+  .coreDumpBacktraceCorrupted = false,
 };
+
+void formatCoreDumpBacktrace(const esp_core_dump_bt_info_t &btInfo) {
+  g_coreDumpBacktrace[0] = '\0';
+
+  size_t used = 0;
+  for (uint32_t index = 0; index < btInfo.depth && index < 16; ++index) {
+    const unsigned long pc = static_cast<unsigned long>(btInfo.bt[index]);
+    if (pc == 0) {
+      break;
+    }
+
+    const int written = snprintf(
+        g_coreDumpBacktrace + used,
+        sizeof(g_coreDumpBacktrace) - used,
+        "%s0x%08lX",
+        used == 0 ? "" : " -> ",
+        pc);
+    if (written <= 0 || static_cast<size_t>(written) >= (sizeof(g_coreDumpBacktrace) - used)) {
+      break;
+    }
+    used += static_cast<size_t>(written);
+  }
+}
 
 const char *resetReasonName(esp_reset_reason_t reason) {
   switch (reason) {
@@ -119,9 +147,12 @@ const char *coreDumpStateName(esp_err_t err) {
 
 void updateCoreDumpStatus() {
   g_coreDumpReason[0] = '\0';
+  g_coreDumpBacktrace[0] = '\0';
   g_status.coreDumpPresent = false;
   g_status.coreDumpSize = 0;
   g_status.coreDumpReason = "";
+  g_status.coreDumpBacktrace = "";
+  g_status.coreDumpBacktraceCorrupted = false;
 
   size_t coreDumpAddress = 0;
   size_t coreDumpSize = 0;
@@ -139,6 +170,15 @@ void updateCoreDumpStatus() {
 #if CONFIG_ESP_COREDUMP_ENABLE_TO_FLASH && CONFIG_ESP_COREDUMP_DATA_FORMAT_ELF
   if (esp_core_dump_get_panic_reason(g_coreDumpReason, sizeof(g_coreDumpReason)) == ESP_OK) {
     g_status.coreDumpReason = g_coreDumpReason;
+  }
+
+  esp_core_dump_summary_t summary{};
+  if (esp_core_dump_get_summary(&summary) == ESP_OK) {
+    formatCoreDumpBacktrace(summary.exc_bt_info);
+    if (g_coreDumpBacktrace[0] != '\0') {
+      g_status.coreDumpBacktrace = g_coreDumpBacktrace;
+      g_status.coreDumpBacktraceCorrupted = summary.exc_bt_info.corrupted;
+    }
   }
 #endif
 }

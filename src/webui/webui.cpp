@@ -49,6 +49,9 @@ void sendCorsHeaders() {
   server.sendHeader("Access-Control-Allow-Origin", "*");
   server.sendHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
   server.sendHeader("Access-Control-Allow-Headers", "Content-Type, Accept");
+  server.sendHeader("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0");
+  server.sendHeader("Pragma", "no-cache");
+  server.sendHeader("Expires", "0");
 }
 
 bool tryServeFromSpiffs(const String &uri) {
@@ -66,6 +69,9 @@ bool tryServeFromSpiffs(const String &uri) {
     if (!file) {
       return false;
     }
+    server.sendHeader("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0");
+    server.sendHeader("Pragma", "no-cache");
+    server.sendHeader("Expires", "0");
     server.streamFile(file, contentTypeForPath(path));
     file.close();
     return true;
@@ -100,6 +106,8 @@ void handleStatus() {
   doc["coreDumpSize"] = resetInfoStatus.coreDumpSize;
   doc["coreDumpState"] = resetInfoStatus.coreDumpState;
   doc["coreDumpReason"] = resetInfoStatus.coreDumpReason;
+  doc["coreDumpBacktrace"] = resetInfoStatus.coreDumpBacktrace;
+  doc["coreDumpBacktraceCorrupted"] = resetInfoStatus.coreDumpBacktraceCorrupted;
   doc["displayText"] = snapshot.text;
   doc["displayCompleteFrameCount"] = displayReaderStats.completeFrameCount;
   doc["displayMissedSelectFrameCount"] = displayReaderStats.missedSelectFrameCount;
@@ -116,6 +124,7 @@ void handleStatus() {
   doc["co2Ppm"] = co2Status.dataValid ? co2Status.co2Ppm : 0;
   doc["co2TemperatureC"] = co2Status.dataValid ? co2Status.temperatureC : 0.0f;
   doc["co2HumidityPct"] = co2Status.dataValid ? co2Status.humidityPct : 0.0f;
+  doc["co2AbsoluteHumidityGm3"] = co2Status.dataValid ? co2Status.absoluteHumidityGm3 : 0.0f;
   doc["co2LastSampleMs"] = co2Status.lastSampleMs;
   doc["co2Error"] = co2Status.error;
   doc["sensorsMenuRunning"] = sensorsMenuStatus.running;

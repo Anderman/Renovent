@@ -577,6 +577,11 @@ namespace
             return false;
         }
 
+        if (!publishCo2Value(nodeId, "co2_absolute_humidity", String(status.absoluteHumidityGm3, 1)))
+        {
+            return false;
+        }
+
         g_lastPublishedCo2SampleMs = status.lastSampleMs;
         g_publishCo2StatePending = false;
         return true;

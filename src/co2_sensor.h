@@ -9,6 +9,7 @@ struct Co2SensorStatus {
   uint16_t co2Ppm;
   float temperatureC;
   float humidityPct;
+  float absoluteHumidityGm3;
   uint32_t lastSampleMs;
   const char *error;
 };

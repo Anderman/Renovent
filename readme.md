@@ -113,3 +113,18 @@ Voor lokaal gebruik zijn deze commando's relevant:
 2. `platformio run --target buildfs`
 3. `platformio run --target uploadfs`
 4. `platformio run --target upload`
+
+### Backtrace decoderen
+
+Een ESP32-S3 backtrace uit de WebUI of seriele output kun je direct tegen de actuele firmware-ELF symboliseren met:
+
+```powershell
+.\scripts\decode_backtrace.ps1 "0x4037EF71 -> 0x40377C96 -> 0x40376AEF"
+```
+
+Het script gebruikt standaard:
+
+- `.pio/build/esp32s3mini_ota/firmware.elf`
+- de PlatformIO `xtensa-esp32s3-elf-addr2line.exe`
+
+Belangrijk: decode altijd tegen de ELF van dezelfde firmware-build als waarmee de crash is ontstaan, anders kloppen functies en regelnummers mogelijk niet.

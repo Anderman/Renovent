@@ -8,7 +8,8 @@ export function buildHomePanel() {
 			${metricCard("Display", "--", "Actuele display", "display-card")}
 			${metricCard("CO2", "--", "ppm", "")}
 			${metricCard("Temperatuur", "--", "°C", "")}
-			${metricCard("Vocht", "--", "%", "")}
+			${metricCard("RV", "--", "%", "")}
+			${metricCard("Abs. vocht", "--", "g/m3", "")}
 		</div>
 		<article class="panel home-airflow-panel">
 			<div class="panel-header">
@@ -35,6 +36,7 @@ export function renderHomePanel(elements, state) {
 	updateMetricCard(elements, 1, snapshot.co2Text, "ppm");
 	updateMetricCard(elements, 2, snapshot.temperatureText, "°C");
 	updateMetricCard(elements, 3, snapshot.humidityText, "%");
+	updateMetricCard(elements, 4, snapshot.absoluteHumidityText, "g/m3");
 	renderAirflowTable(elements, state.sensorsPayload);
 
 	elements.sidebarDisplay.textContent = snapshot.displayText;

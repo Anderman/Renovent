@@ -76,7 +76,7 @@ namespace
     };
 
     constexpr SensorsMenuStep kReadScript[] = {
-        {"enter-step-7", static_cast<KeyMask>(kKeyFunction | kKeyOk), 3200, 100, "n.", 7},
+        {"enter-step-7", static_cast<KeyMask>(kKeyFunction | kKeyOk), app_config::kMenuEnterHoldMs, 100, "n.", 7},
         {"next-step-8", kKeyPlus, 150, 100, "u.", 8},
         {"next-step-9", kKeyPlus, 150, 100, "t.", 9},
         {"next-step-10", kKeyPlus, 150, 100, "A.", 10},
@@ -89,7 +89,7 @@ namespace
         {"next-step-4", kKeyPlus, 150, 100, "tP", 4},
         {"next-step-5", kKeyPlus, 150, 100, "ts", 5},
         {"next-step-6", kKeyPlus, 150, 100, "In", 6},
-        {"enter-menu", kKeyFunction, 3200, 100, nullptr, kNoCaptureStep},
+        {"enter-menu", kKeyFunction, app_config::kMenuEnterHoldMs, 100, nullptr, kNoCaptureStep},
         {"exit-menu", kKeyFunction, 1000, 100, nullptr, kNoCaptureStep}
     };
 

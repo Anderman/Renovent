@@ -12,6 +12,8 @@ struct ResetInfoStatus {
   uint32_t coreDumpSize;
   const char *coreDumpState;
   const char *coreDumpReason;
+  const char *coreDumpBacktrace;
+  bool coreDumpBacktraceCorrupted;
 };
 
 void resetInfoSetup();

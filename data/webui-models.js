@@ -81,18 +81,19 @@ export function mapStatusSnapshot(status) {
 	const resetText = status.resetReason
 		? `${status.resetReason}${status.resetRawReason !== undefined ? ` (${status.resetRawReason})` : ""}`
 		: "--";
-	const coreDumpBacktraceText = status.coreDumpReason
-		? status.coreDumpReason
-		: (status.coreDumpPresent ? "Niet beschikbaar in huidige firmware; seriele panic-uitvoer bevat de backtrace." : "--");
-	const coreDumpAgeText = status.coreDumpPresent
-		? "Onbekend; ESP-IDF geeft hier geen timestamp of leeftijd voor terug."
-		: "--";
+	const backtraceSuffix = status.coreDumpBacktraceCorrupted ? " (mogelijk incompleet)" : "";
+	const coreDumpBacktraceText = status.coreDumpBacktrace
+		? `${status.coreDumpBacktrace}${backtraceSuffix}`
+		: (status.coreDumpReason
+			? status.coreDumpReason
+			: (status.coreDumpPresent ? "Niet beschikbaar in huidige firmware; decodeer coredump host-side met de build ELF." : "--"));
 
 	return {
 		displayText: status.displayText ?? "--",
 		co2Text: status.co2Valid ? String(status.co2Ppm) : "--",
 		temperatureText: status.co2Valid ? `${Number(status.co2TemperatureC ?? 0).toFixed(1)}` : "--",
 		humidityText: status.co2Valid ? `${Number(status.co2HumidityPct ?? 0).toFixed(1)}` : "--",
+		absoluteHumidityText: status.co2Valid ? `${Number(status.co2AbsoluteHumidityGm3 ?? 0).toFixed(1)}` : "--",
 		activityText,
 		meta: [
 			["Reset", resetText],
@@ -104,8 +105,7 @@ export function mapStatusSnapshot(status) {
 			["Laatste display", status.loggedDisplayText ?? "--"],
 			["Auto-update", status.autoUpdateState ?? "--"],
 			["Core dump", coreDumpText],
-			["Core dump info", coreDumpBacktraceText],
-			["Core dump leeftijd", coreDumpAgeText]
+			["Backtrace", coreDumpBacktraceText]
 		]
 	};
 }

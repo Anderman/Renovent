@@ -2,6 +2,7 @@
 
 #include <cstring>
 
+#include "app_config.h"
 #include "display_text_utils.h"
 #include "display_reader.h"
 #include "sensors_menu.h"
@@ -59,8 +60,8 @@ namespace
     constexpr uint8_t kExitMenuStepIndex = 5;
 
     constexpr SettingStep kReadScript[] = {
-        {"enter-settings-menu", kKeyFunction, 3200, 100, SettingsAction::AdvanceOnly},
-        {"enter-sensors-settings", static_cast<KeyMask>(kKeyFunction | kKeyOk), 3200, 100, SettingsAction::ReadCurrentEntry},
+        {"enter-settings-menu", kKeyFunction, app_config::kMenuEnterHoldMs, 100, SettingsAction::AdvanceOnly},
+        {"enter-sensors-settings", static_cast<KeyMask>(kKeyFunction | kKeyOk), app_config::kMenuEnterHoldMs, 100, SettingsAction::ReadCurrentEntry},
         {"open-entry", kKeyOk, 500, 100, SettingsAction::CaptureCurrentValue},
         {"return-entry", kKeyOk, 160, 220, SettingsAction::ReturnToEntry},
         {"next-entry", kKeyPlus, 120, 150, SettingsAction::SelectNextEntry},

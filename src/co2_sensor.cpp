@@ -1,5 +1,7 @@
 #include "co2_sensor.h"
 
+#include <cmath>
+
 #include <Wire.h>
 
 #include "pins.h"
@@ -24,6 +26,7 @@ bool g_dataValid = false;
 uint16_t g_co2Ppm = 0;
 float g_temperatureC = 0.0f;
 float g_humidityPct = 0.0f;
+float g_absoluteHumidityGm3 = 0.0f;
 uint32_t g_lastSampleMs = 0;
 uint32_t g_nextInitAttemptMs = 0;
 uint32_t g_lastPollMs = 0;
@@ -166,6 +169,9 @@ bool readMeasurement() {
   g_co2Ppm = words[0];
   g_temperatureC = -45.0f + (175.0f * static_cast<float>(words[1]) / 65536.0f);
   g_humidityPct = 100.0f * static_cast<float>(words[2]) / 65536.0f;
+  const float saturationVaporPressureHpa = 6.112f * std::exp((17.67f * g_temperatureC) / (g_temperatureC + 243.5f));
+  const float vaporPressureHpa = saturationVaporPressureHpa * (g_humidityPct / 100.0f);
+  g_absoluteHumidityGm3 = 216.7f * (vaporPressureHpa / (g_temperatureC + 273.15f));
   g_lastSampleMs = millis();
   g_error = "ok";
   return true;
@@ -211,6 +217,7 @@ Co2SensorStatus getCo2SensorStatus() {
       .co2Ppm = g_co2Ppm,
       .temperatureC = g_temperatureC,
       .humidityPct = g_humidityPct,
+      .absoluteHumidityGm3 = g_absoluteHumidityGm3,
       .lastSampleMs = g_lastSampleMs,
       .error = g_error,
   };
