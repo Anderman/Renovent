@@ -70,22 +70,16 @@ export function mapSensorEntries(payload) {
 export function mapStatusSnapshot(status) {
 	const uptimeMs = Number(status.uptimeMs ?? 0);
 	const lastCheckMs = Number(status.autoUpdateLastCheckMs ?? 0);
-	const nextCheckMs = Number(status.autoUpdateNextCheckMs ?? 0);
-	const lastCheckText = lastCheckMs > 0 && uptimeMs >= lastCheckMs
-		? `${Math.floor((uptimeMs - lastCheckMs) / 1000)}s geleden`
+	const lastCheckDate = lastCheckMs > 0 && uptimeMs >= lastCheckMs
+		? new Date(Date.now() - (uptimeMs - lastCheckMs))
+		: null;
+	const lastCheckText = lastCheckDate
+		? lastCheckDate.toLocaleTimeString("nl-NL", {
+			hour: "2-digit",
+			minute: "2-digit",
+			second: "2-digit"
+		})
 		: "--";
-	const nextCheckText = nextCheckMs > 0 && uptimeMs <= nextCheckMs
-		? `over ${Math.max(0, Math.ceil((nextCheckMs - uptimeMs) / 1000))}s`
-		: (nextCheckMs > 0 ? "nu" : "--");
-	const otaSummary = [status.autoUpdateState ?? "--", lastCheckText, nextCheckText]
-		.filter((value) => value && value !== "--")
-		.join(" / ");
-	const otaHttpCall = status.autoUpdateLastHttpUrl
-		? [status.autoUpdateLastHttpOperation ?? "http", status.autoUpdateLastHttpUrl].filter(Boolean).join(" ")
-		: "--";
-	const otaHttpResult = status.autoUpdateLastHttpCode > 0
-		? `HTTP ${status.autoUpdateLastHttpCode}${status.autoUpdateLastHttpDetail ? ` / ${status.autoUpdateLastHttpDetail}` : ""}`
-		: (status.autoUpdateLastHttpDetail ?? "--");
 	const coreDumpText = status.coreDumpPresent
 		? `${status.coreDumpState ?? "present"} (${status.coreDumpSize ?? 0} B)`
 		: (status.coreDumpState ?? "not-found");
@@ -121,11 +115,8 @@ export function mapStatusSnapshot(status) {
 			["RSSI", status.rssi !== undefined ? `${status.rssi} dBm` : "--"],
 			["Actieve toets", status.activeKeys ?? "--"],
 			["Laatste display", status.loggedDisplayText ?? "--"],
-			["OTA", otaSummary || "--"],
-			["OTA resultaat", status.autoUpdateLastResult ?? "--"],
-			["OTA call", otaHttpCall],
-			["OTA HTTP", otaHttpResult],
-			["OTA log", status.autoUpdateHttpHistory ?? "--"],
+			["Laatste OTA check", lastCheckText],
+			["OTA fout", status.autoUpdateLastError || "--"],
 			["Core dump", coreDumpText],
 			["Backtrace", coreDumpBacktraceText]
 		]

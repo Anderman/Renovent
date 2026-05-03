@@ -12,23 +12,18 @@ namespace {
 const char *const kVersionFilePath = "/version.txt";
 
 AutoUpdateStatus g_status = {
-  String(), String(), String("idle"), 0, 0, String("Nog geen check uitgevoerd"), String(), String(), 0, String(), String()};
+  String(), String(), String("idle"), 0, 0, String("Nog geen check uitgevoerd"), String()};
 
 unsigned long g_nextCheckMillis = 0;
-
-void logMessage(const String &message) {
-  Serial.print("[autoupdate] ");
-  Serial.println(message);
-}
 
 void setState(const char *value) {
   g_status.state = value;
 }
 
 void setError(const String &message) {
+  g_status.lastError = message;
   g_status.lastCheckResult = message;
   setState("error");
-  logMessage(String("Fout: ") + message);
 }
 
 bool isNewerBuildId(const String &candidate, const String &current) {
@@ -49,26 +44,16 @@ void scheduleNextCheck(unsigned long delayMs) {
   g_status.nextCheckMillis = g_nextCheckMillis;
 }
 
-void refreshLastHttpStatus() {
-  const UpdateHttpCall &lastHttpCall = getLastUpdateHttpCall();
-  g_status.lastHttpOperation = lastHttpCall.operation;
-  g_status.lastHttpUrl = lastHttpCall.url;
-  g_status.lastHttpCode = lastHttpCall.httpCode;
-  g_status.lastHttpDetail = lastHttpCall.detail;
-  g_status.httpHistory = getRecentUpdateHttpCallsText();
-}
-
 void beginUpdateCheck(unsigned long startedMs) {
   refreshCurrentBuildIds();
   g_status.lastCheckMillis = startedMs;
   g_status.lastCheckResult = "Controleren op update";
+  g_status.lastError = String();
   setState("checking");
-  logMessage("Check gestart");
 }
 
 void completeUpdateCheck(const String &result) {
   g_status.lastCheckResult = result;
-  logMessage(result);
   setState("idle");
 }
 
@@ -78,11 +63,10 @@ bool applyAvailableArtifact(const RemoteArtifact &artifact,
                            const char *foundPrefix,
                            const char *appliedPrefix) {
   g_status.lastCheckResult = String(foundPrefix) + artifact.buildId;
-  logMessage(g_status.lastCheckResult);
   setState(updatingState);
 
   if (applyRemoteArtifact(artifact, updateCommand, autoUpdateConfig::kUserAgent, setError)) {
-    logMessage(String(appliedPrefix) + artifact.buildId);
+    g_status.lastCheckResult = String(appliedPrefix) + artifact.buildId;
     delay(500);
     ESP.restart();
   }
@@ -126,10 +110,8 @@ void setupAutoUpdate() {
   scheduleNextCheck(autoUpdateConfig::kInitialCheckDelayMs);
   if (!autoUpdateEnabled()) {
     g_status.lastCheckResult = "Auto-update is uitgeschakeld";
+    g_status.lastError = String();
     setState("disabled");
-    logMessage("Auto-update is uitgeschakeld");
-  } else {
-    logMessage(String("Auto-update actief, eerste check over ") + (autoUpdateConfig::kInitialCheckDelayMs / 1000UL) + "s");
   }
 }
 
@@ -140,6 +122,7 @@ void autoUpdateLoop() {
 
   if (WiFi.status() != WL_CONNECTED) {
     g_status.lastCheckResult = "Wacht op WiFi";
+    g_status.lastError = String();
     return;
   }
 
@@ -153,17 +136,15 @@ void autoUpdateLoop() {
     setState("idle");
   }
   scheduleNextCheck(autoUpdateConfig::kCheckIntervalMs);
-  logMessage(String("Volgende check over ") + (autoUpdateConfig::kCheckIntervalMs / 1000UL) + "s");
 }
 
 void queueAutoUpdateCheck() {
   g_status.lastCheckResult = "Handmatige check ingepland";
+  g_status.lastError = String();
   scheduleNextCheck(0);
-  logMessage("Handmatige check ingepland");
 }
 
 const AutoUpdateStatus &getAutoUpdateStatus() {
-  refreshLastHttpStatus();
   return g_status;
 }
 

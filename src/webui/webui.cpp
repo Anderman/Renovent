@@ -140,11 +140,7 @@ void handleStatus() {
   doc["autoUpdateLastCheckMs"] = autoUpdateStatus.lastCheckMillis;
   doc["autoUpdateNextCheckMs"] = autoUpdateStatus.nextCheckMillis;
   doc["autoUpdateLastResult"] = autoUpdateStatus.lastCheckResult;
-  doc["autoUpdateLastHttpOperation"] = autoUpdateStatus.lastHttpOperation;
-  doc["autoUpdateLastHttpUrl"] = autoUpdateStatus.lastHttpUrl;
-  doc["autoUpdateLastHttpCode"] = autoUpdateStatus.lastHttpCode;
-  doc["autoUpdateLastHttpDetail"] = autoUpdateStatus.lastHttpDetail;
-  doc["autoUpdateHttpHistory"] = autoUpdateStatus.httpHistory;
+  doc["autoUpdateLastError"] = autoUpdateStatus.lastError;
   doc["settingsMenuRunning"] = settingsMenuStatus.running;
   doc["settingsMenuCount"] = settingsMenuStatus.count;
   doc["settingsMenuPhase"] = settingsMenuStatus.phase;
