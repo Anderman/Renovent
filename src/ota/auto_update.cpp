@@ -12,24 +12,13 @@ namespace {
 const char *const kVersionFilePath = "/version.txt";
 
 AutoUpdateStatus g_status = {
-  String(), String(), String(), String(), String("idle"), String(), 0, 0, 0, 0, 0,
-  String("Nog geen check uitgevoerd"), 0, {}, false, false, false};
+  String(), String(), String("idle"), 0, 0, String("Nog geen check uitgevoerd")};
 
 unsigned long g_nextCheckMillis = 0;
 
-void appendLog(const String &message) {
+void logMessage(const String &message) {
   Serial.print("[autoupdate] ");
   Serial.println(message);
-
-  if (g_status.logCount < kAutoUpdateLogCapacity) {
-    g_status.logEntries[g_status.logCount++] = message;
-    return;
-  }
-
-  for (uint8_t index = 1; index < kAutoUpdateLogCapacity; ++index) {
-    g_status.logEntries[index - 1] = g_status.logEntries[index];
-  }
-  g_status.logEntries[kAutoUpdateLogCapacity - 1] = message;
 }
 
 void setState(const char *value) {
@@ -37,14 +26,17 @@ void setState(const char *value) {
 }
 
 void setError(const String &message) {
-  g_status.lastError = message;
   g_status.lastCheckResult = message;
   setState("error");
-  appendLog(String("Fout: ") + message);
+  logMessage(String("Fout: ") + message);
 }
 
 bool isNewerBuildId(const String &candidate, const String &current) {
   return candidate.length() > 0 && (current.length() == 0 || candidate > current);
+}
+
+bool autoUpdateEnabled() {
+  return autoUpdateConfig::kEnabled && autoUpdateConfig::kManifestUrl[0] != '\0';
 }
 
 void refreshCurrentBuildIds() {
@@ -57,93 +49,83 @@ void scheduleNextCheck(unsigned long delayMs) {
   g_status.nextCheckMillis = g_nextCheckMillis;
 }
 
+void beginUpdateCheck(unsigned long startedMs) {
+  refreshCurrentBuildIds();
+  g_status.lastCheckMillis = startedMs;
+  g_status.lastCheckResult = "Controleren op update";
+  setState("checking");
+  logMessage("Check gestart");
+}
+
+void completeUpdateCheck(const String &result) {
+  g_status.lastCheckResult = result;
+  logMessage(result);
+  setState("idle");
+}
+
+bool applyAvailableArtifact(const RemoteArtifact &artifact,
+                           int updateCommand,
+                           const char *updatingState,
+                           const char *foundPrefix,
+                           const char *appliedPrefix) {
+  g_status.lastCheckResult = String(foundPrefix) + artifact.buildId;
+  logMessage(g_status.lastCheckResult);
+  setState(updatingState);
+
+  if (applyRemoteArtifact(artifact, updateCommand, autoUpdateConfig::kUserAgent, setError)) {
+    logMessage(String(appliedPrefix) + artifact.buildId);
+    delay(500);
+    ESP.restart();
+  }
+
+  return true;
+}
+
 void performUpdateCheck() {
-  if (!autoUpdateConfig::kEnabled || autoUpdateConfig::kManifestUrl[0] == '\0') {
+  if (!autoUpdateEnabled()) {
     g_status.lastCheckResult = "Auto-update is uitgeschakeld";
     setState("disabled");
     return;
   }
 
   const unsigned long startedMs = millis();
-  refreshCurrentBuildIds();
-  g_status.latestFirmwareBuildId = String();
-  g_status.latestSpiffsBuildId = String();
-  g_status.firmwareUpdateAvailable = false;
-  g_status.spiffsUpdateAvailable = false;
-  g_status.lastError = String();
-  g_status.lastCheckMillis = startedMs;
-  g_status.lastCheckDurationMs = 0;
-  g_status.checkCount += 1;
-  g_status.lastCheckResult = "Controleren op update";
-
-  setState("checking");
-  appendLog(String("Check #") + g_status.checkCount + " gestart");
+  beginUpdateCheck(startedMs);
 
   RemoteArtifact firmwareArtifact;
   RemoteArtifact spiffsArtifact;
   if (!fetchLatestArtifactsManifest(autoUpdateConfig::kManifestUrl, autoUpdateConfig::kUserAgent,
                                     firmwareArtifact, spiffsArtifact, setError)) {
-    g_status.lastCheckDurationMs = millis() - startedMs;
     return;
   }
 
-  g_status.latestFirmwareBuildId = firmwareArtifact.buildId;
-  g_status.latestSpiffsBuildId = spiffsArtifact.buildId;
-  g_status.firmwareUpdateAvailable = isNewerBuildId(firmwareArtifact.buildId, g_status.currentFirmwareBuildId);
-  g_status.spiffsUpdateAvailable = isNewerBuildId(spiffsArtifact.buildId, g_status.currentSpiffsBuildId);
-  if (g_status.firmwareUpdateAvailable) {
-    g_status.successfulCheckCount += 1;
-    g_status.lastCheckDurationMs = millis() - startedMs;
-    g_status.lastCheckResult = String("Nieuwe firmware ") + firmwareArtifact.buildId;
-    appendLog(String("Nieuwe firmware gevonden: ") + firmwareArtifact.buildId);
-    setState("updating-firmware");
-    if (applyRemoteArtifact(firmwareArtifact, U_FLASH, autoUpdateConfig::kUserAgent, setError)) {
-      appendLog(String("Firmware update toegepast: ") + firmwareArtifact.buildId);
-      delay(500);
-      ESP.restart();
-    }
+  if (isNewerBuildId(firmwareArtifact.buildId, g_status.currentFirmwareBuildId)) {
+    applyAvailableArtifact(firmwareArtifact, U_FLASH, "updating-firmware", "Nieuwe firmware ", "Firmware update toegepast: ");
     return;
   }
 
-  if (g_status.spiffsUpdateAvailable) {
-    g_status.successfulCheckCount += 1;
-    g_status.lastCheckDurationMs = millis() - startedMs;
-    g_status.lastCheckResult = String("Nieuwe SPIFFS ") + spiffsArtifact.buildId;
-    appendLog(String("Nieuwe SPIFFS gevonden: ") + spiffsArtifact.buildId);
-    setState("updating-spiffs");
-    if (applyRemoteArtifact(spiffsArtifact, U_SPIFFS, autoUpdateConfig::kUserAgent, setError)) {
-      appendLog(String("SPIFFS update toegepast: ") + spiffsArtifact.buildId);
-      delay(500);
-      ESP.restart();
-    }
+  if (isNewerBuildId(spiffsArtifact.buildId, g_status.currentSpiffsBuildId)) {
+    applyAvailableArtifact(spiffsArtifact, U_SPIFFS, "updating-spiffs", "Nieuwe SPIFFS ", "SPIFFS update toegepast: ");
     return;
   }
 
-  g_status.successfulCheckCount += 1;
-  g_status.lastCheckDurationMs = millis() - startedMs;
-  g_status.lastCheckResult = "Geen update beschikbaar";
-  appendLog("Geen update beschikbaar");
-  setState("idle");
+  completeUpdateCheck("Geen update beschikbaar");
 }
 }  // namespace
 
 void setupAutoUpdate() {
   refreshCurrentBuildIds();
-  g_status.latestFirmwareBuildId = g_status.currentFirmwareBuildId;
-  g_status.latestSpiffsBuildId = g_status.currentSpiffsBuildId;
-  g_status.checkQueued = true;
   scheduleNextCheck(autoUpdateConfig::kInitialCheckDelayMs);
-  if (!autoUpdateConfig::kEnabled) {
+  if (!autoUpdateEnabled()) {
     g_status.lastCheckResult = "Auto-update is uitgeschakeld";
     setState("disabled");
-    appendLog("Auto-update is uitgeschakeld");
+    logMessage("Auto-update is uitgeschakeld");
   } else {
-    appendLog(String("Auto-update actief, eerste check over ") + (autoUpdateConfig::kInitialCheckDelayMs / 1000UL) + "s");
+    logMessage(String("Auto-update actief, eerste check over ") + (autoUpdateConfig::kInitialCheckDelayMs / 1000UL) + "s");
   }
 }
 
 void autoUpdateLoop() {
-  if (!autoUpdateConfig::kEnabled) {
+  if (!autoUpdateEnabled()) {
     return;
   }
 
@@ -153,28 +135,22 @@ void autoUpdateLoop() {
   }
 
   const unsigned long now = millis();
-  if (!g_status.checkQueued && static_cast<long>(now - g_nextCheckMillis) < 0) {
+  if (static_cast<long>(now - g_nextCheckMillis) < 0) {
     return;
   }
 
-  if (g_status.checkQueued && static_cast<long>(now - g_nextCheckMillis) < 0) {
-    return;
-  }
-
-  g_status.checkQueued = false;
   performUpdateCheck();
   if (g_status.state != "error") {
     setState("idle");
   }
   scheduleNextCheck(autoUpdateConfig::kCheckIntervalMs);
-  appendLog(String("Volgende check over ") + (autoUpdateConfig::kCheckIntervalMs / 1000UL) + "s");
+  logMessage(String("Volgende check over ") + (autoUpdateConfig::kCheckIntervalMs / 1000UL) + "s");
 }
 
 void queueAutoUpdateCheck() {
-  g_status.checkQueued = true;
   g_status.lastCheckResult = "Handmatige check ingepland";
   scheduleNextCheck(0);
-  appendLog("Handmatige check ingepland");
+  logMessage("Handmatige check ingepland");
 }
 
 const AutoUpdateStatus &getAutoUpdateStatus() {
