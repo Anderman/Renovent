@@ -114,16 +114,24 @@ Voor lokaal gebruik zijn deze commando's relevant:
 3. `platformio run --target uploadfs`
 4. `platformio run --target upload`
 
-### OTA artifacts op GitHub
+### OTA artifacts lokaal bouwen
 
-De automatische firmware-update leest OTA-bestanden uit `release/firmware` en `release/spiffs` op de `main` branch.
+De automatische firmware-update leest OTA-bestanden uit `release/firmware`, `release/spiffs` en `release/latest.json`.
 
-De workflow [/.github/workflows/publish-ota-artifacts.yml](.github/workflows/publish-ota-artifacts.yml) bouwt bij iedere push naar `main` zowel firmware als SPIFFS, gebruikt daarvoor dezelfde UTC build-id en commit daarna:
+Deze artifacts worden lokaal gegenereerd door `scripts/generate_build_info.py`, dat als PlatformIO build hook meeloopt. De hook:
 
-- `release/firmware/YYYYMMDDTHHMMSSZ.bin`
-- `release/spiffs/YYYYMMDDTHHMMSSZ.bin`
+- berekent een aparte hash voor `src` en `data`
+- bewaart per component precies een markerbestand `*.hash` in `src` en `ui-hashes`
+- schrijft alleen een nieuwe build-id als de hash van die component gewijzigd is
+- kopieert de nieuwe `.bin` naar `release/firmware` of `release/spiffs`
+- werkt daarna `release/latest.json` bij
 
-Daardoor kan de ESP32 de nieuwste build op GitHub vinden via de bestaande OTA-check.
+Voor een volledige lokale OTA release bouw je beide artifacts:
+
+1. `platformio run -e esp32s3mini_ota`
+2. `platformio run -e esp32s3mini_ota -t buildfs`
+
+Daarna kun je de bijgewerkte bestanden in `release/` zelf committen of op een andere manier publiceren, zolang `release/latest.json` en de bijbehorende `.bin` bestanden bereikbaar blijven voor de ESP32.
 
 ### Backtrace decoderen
 
