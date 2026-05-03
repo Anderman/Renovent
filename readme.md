@@ -114,6 +114,17 @@ Voor lokaal gebruik zijn deze commando's relevant:
 3. `platformio run --target uploadfs`
 4. `platformio run --target upload`
 
+### OTA artifacts op GitHub
+
+De automatische firmware-update leest OTA-bestanden uit `release/firmware` en `release/spiffs` op de `main` branch.
+
+De workflow [/.github/workflows/publish-ota-artifacts.yml](.github/workflows/publish-ota-artifacts.yml) bouwt bij iedere push naar `main` zowel firmware als SPIFFS, gebruikt daarvoor dezelfde UTC build-id en commit daarna:
+
+- `release/firmware/YYYYMMDDTHHMMSSZ.bin`
+- `release/spiffs/YYYYMMDDTHHMMSSZ.bin`
+
+Daardoor kan de ESP32 de nieuwste build op GitHub vinden via de bestaande OTA-check.
+
 ### Backtrace decoderen
 
 Een ESP32-S3 backtrace uit de WebUI of seriele output kun je direct tegen de actuele firmware-ELF symboliseren met:

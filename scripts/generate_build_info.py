@@ -1,3 +1,4 @@
+import os
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -17,7 +18,7 @@ def write_if_changed(path: Path, content: str) -> None:
 
 def generate_build_metadata(*args, **kwargs) -> None:
     project_dir = Path(env["PROJECT_DIR"])
-    build_id = build_id_now()
+    build_id = os.environ.get("RENOVENT_BUILD_ID", "").strip() or build_id_now()
 
     header_path = project_dir / "src" / "build_info.generated.h"
     header_content = (
