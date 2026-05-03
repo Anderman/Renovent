@@ -139,8 +139,17 @@ void handleStatus() {
   doc["autoUpdateState"] = autoUpdateStatus.state;
   doc["autoUpdateError"] = autoUpdateStatus.lastError;
   doc["autoUpdateLastCheckMs"] = autoUpdateStatus.lastCheckMillis;
+  doc["autoUpdateLastCheckDurationMs"] = autoUpdateStatus.lastCheckDurationMs;
+  doc["autoUpdateNextCheckMs"] = autoUpdateStatus.nextCheckMillis;
+  doc["autoUpdateCheckCount"] = autoUpdateStatus.checkCount;
+  doc["autoUpdateSuccessfulCheckCount"] = autoUpdateStatus.successfulCheckCount;
+  doc["autoUpdateLastResult"] = autoUpdateStatus.lastCheckResult;
   doc["firmwareUpdateAvailable"] = autoUpdateStatus.firmwareUpdateAvailable;
   doc["spiffsUpdateAvailable"] = autoUpdateStatus.spiffsUpdateAvailable;
+  JsonArray autoUpdateLog = doc["autoUpdateLog"].to<JsonArray>();
+  for (uint8_t index = 0; index < autoUpdateStatus.logCount; ++index) {
+    autoUpdateLog.add(autoUpdateStatus.logEntries[index]);
+  }
   doc["settingsMenuRunning"] = settingsMenuStatus.running;
   doc["settingsMenuCount"] = settingsMenuStatus.count;
   doc["settingsMenuPhase"] = settingsMenuStatus.phase;

@@ -6,6 +6,8 @@ on:
       - main
     paths-ignore:
       - release/**
+      - src/build_info.generated.h
+      - data/version.txt
   workflow_dispatch:
 
 permissions:
@@ -43,16 +45,28 @@ jobs:
           mkdir -p release/firmware release/spiffs
           cp .pio/build/esp32s3mini_ota/firmware.bin "release/firmware/${RENOVENT_BUILD_ID}.bin"
           cp .pio/build/esp32s3mini_ota/spiffs.bin "release/spiffs/${RENOVENT_BUILD_ID}.bin"
-          git restore src/build_info.generated.h data/version.txt
+          cat > release/latest.json <<EOF
+          {
+            "generatedAt": "${RENOVENT_BUILD_ID}",
+            "firmware": {
+              "buildId": "${RENOVENT_BUILD_ID}",
+              "downloadUrl": "https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/${GITHUB_REF_NAME}/release/firmware/${RENOVENT_BUILD_ID}.bin"
+            },
+            "spiffs": {
+              "buildId": "${RENOVENT_BUILD_ID}",
+              "downloadUrl": "https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/${GITHUB_REF_NAME}/release/spiffs/${RENOVENT_BUILD_ID}.bin"
+            }
+          }
+          EOF
 
       - name: Commit OTA artifacts
         run: |
-          git add release/firmware release/spiffs
+          git add release/firmware release/spiffs release/latest.json src/build_info.generated.h data/version.txt
           if git diff --cached --quiet; then
             echo "No OTA artifact changes to commit"
             exit 0
           fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git commit -m "Publish OTA artifacts ${RENOVENT_BUILD_ID}"
+          git commit -m "Publish OTA artifacts ${RENOVENT_BUILD_ID} [skip ci]"
           git push

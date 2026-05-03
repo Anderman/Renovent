@@ -68,6 +68,18 @@ export function mapSensorEntries(payload) {
 }
 
 export function mapStatusSnapshot(status) {
+	const uptimeMs = Number(status.uptimeMs ?? 0);
+	const lastCheckMs = Number(status.autoUpdateLastCheckMs ?? 0);
+	const nextCheckMs = Number(status.autoUpdateNextCheckMs ?? 0);
+	const lastCheckText = lastCheckMs > 0 && uptimeMs >= lastCheckMs
+		? `${Math.floor((uptimeMs - lastCheckMs) / 1000)}s geleden`
+		: "--";
+	const nextCheckText = nextCheckMs > 0 && uptimeMs <= nextCheckMs
+		? `over ${Math.max(0, Math.ceil((nextCheckMs - uptimeMs) / 1000))}s`
+		: (nextCheckMs > 0 ? "nu" : "--");
+	const otaSummary = [status.autoUpdateState ?? "--", lastCheckText, nextCheckText]
+		.filter((value) => value && value !== "--")
+		.join(" / ");
 	const coreDumpText = status.coreDumpPresent
 		? `${status.coreDumpState ?? "present"} (${status.coreDumpSize ?? 0} B)`
 		: (status.coreDumpState ?? "not-found");
@@ -103,7 +115,8 @@ export function mapStatusSnapshot(status) {
 			["RSSI", status.rssi !== undefined ? `${status.rssi} dBm` : "--"],
 			["Actieve toets", status.activeKeys ?? "--"],
 			["Laatste display", status.loggedDisplayText ?? "--"],
-			["Auto-update", status.autoUpdateState ?? "--"],
+			["OTA", otaSummary || "--"],
+			["OTA resultaat", status.autoUpdateLastResult ?? "--"],
 			["Core dump", coreDumpText],
 			["Backtrace", coreDumpBacktraceText]
 		]

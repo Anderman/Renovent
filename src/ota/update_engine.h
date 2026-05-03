@@ -9,13 +9,13 @@ struct RemoteArtifact {
 
 using UpdateErrorReporter = void (*)(const String &message);
 
-bool fetchLatestArtifact(const char *owner,
-                        const char *repo,
-                        const char *ref,
-                        const char *path,
-                        const char *userAgent,
-                        RemoteArtifact &artifact,
-                        UpdateErrorReporter reportError);
+bool fetchLatestArtifactsManifest(const char *owner,
+                                  const char *repo,
+                                  const char *ref,
+                                  const char *userAgent,
+                                  RemoteArtifact &firmwareArtifact,
+                                  RemoteArtifact &spiffsArtifact,
+                                  UpdateErrorReporter reportError);
 
 String readSpiffsBuildId(const char *versionFilePath);
 

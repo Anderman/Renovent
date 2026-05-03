@@ -11,6 +11,16 @@
 
 namespace {
 const char *const kGitHubApiHost = "https://api.github.com/repos/";
+const char *const kGitHubRawHost = "https://raw.githubusercontent.com/";
+
+String formatHttpFailure(const char *label, const String &url, int httpCode) {
+  String message = label;
+  message += ": HTTP ";
+  message += httpCode;
+  message += " url=";
+  message += url;
+  return message;
+}
 
 bool isBuildId(String value) {
   if (!value.endsWith(".bin")) {
@@ -59,6 +69,45 @@ String getContentsUrl(const char *owner, const char *repo, const char *ref, cons
   return url;
 }
 
+String getRawFileUrl(const char *owner, const char *repo, const char *ref, const char *path) {
+  String url = kGitHubRawHost;
+  url += owner;
+  url += "/";
+  url += repo;
+  url += "/";
+  url += ref;
+  url += "/";
+  url += path;
+  return url;
+}
+
+bool readArtifactFromManifest(JsonVariantConst value,
+                              const char *name,
+                              RemoteArtifact &artifact,
+                              const String &manifestUrl,
+                              UpdateErrorReporter reportError) {
+  if (!value.is<JsonObjectConst>()) {
+    reportError(String("Invalid manifest entry: ") + name + " url=" + manifestUrl);
+    return false;
+  }
+
+  const char *buildId = value["buildId"];
+  const char *downloadUrl = value["downloadUrl"];
+  if (buildId == nullptr || downloadUrl == nullptr) {
+    reportError(String("Incomplete manifest entry: ") + name + " url=" + manifestUrl);
+    return false;
+  }
+
+  artifact.buildId = buildId;
+  artifact.downloadUrl = downloadUrl;
+  if (!isBuildId(String(artifact.buildId) + ".bin")) {
+    reportError(String("Invalid buildId in manifest: ") + name + " value=" + artifact.buildId + " url=" + manifestUrl);
+    return false;
+  }
+
+  return true;
+}
+
 bool beginRequest(HTTPClient &http,
                   WiFiClientSecure &client,
                   const String &url,
@@ -78,23 +127,24 @@ bool beginRequest(HTTPClient &http,
 }
 }  // namespace
 
-bool fetchLatestArtifact(const char *owner,
-                        const char *repo,
-                        const char *ref,
-                        const char *path,
-                        const char *userAgent,
-                        RemoteArtifact &artifact,
-                        UpdateErrorReporter reportError) {
+bool fetchLatestArtifactsManifest(const char *owner,
+                                  const char *repo,
+                                  const char *ref,
+                                  const char *userAgent,
+                                  RemoteArtifact &firmwareArtifact,
+                                  RemoteArtifact &spiffsArtifact,
+                                  UpdateErrorReporter reportError) {
+  const String manifestUrl = getRawFileUrl(owner, repo, ref, "release/latest.json");
   WiFiClientSecure client;
   HTTPClient http;
-  if (!beginRequest(http, client, getContentsUrl(owner, repo, ref, path), "application/vnd.github+json",
+  if (!beginRequest(http, client, manifestUrl, "application/json",
                     userAgent, reportError)) {
     return false;
   }
 
   const int httpCode = http.GET();
   if (httpCode != HTTP_CODE_OK) {
-    reportError(String("GitHub listing failed for ") + path + ": HTTP " + httpCode);
+    reportError(formatHttpFailure("Manifest fetch failed", manifestUrl, httpCode));
     http.end();
     return false;
   }
@@ -103,37 +153,17 @@ bool fetchLatestArtifact(const char *owner,
   const DeserializationError jsonError = deserializeJson(doc, http.getString());
   http.end();
   if (jsonError) {
-    reportError(String("Failed to parse GitHub listing for ") + path + ": " + jsonError.c_str());
+    reportError(String("Failed to parse manifest: url=") + manifestUrl + " error=" + jsonError.c_str());
     return false;
   }
 
-  if (!doc.is<JsonArray>()) {
-    reportError(String("Unexpected GitHub listing for ") + path);
+  if (!doc.is<JsonObject>()) {
+    reportError(String("Unexpected manifest payload: url=") + manifestUrl);
     return false;
   }
 
-  for (JsonObject item : doc.as<JsonArray>()) {
-    const char *name = item["name"];
-    const char *downloadUrl = item["download_url"];
-    if (name == nullptr || downloadUrl == nullptr) {
-      continue;
-    }
-
-    const String buildId = extractBuildId(String(name));
-    if (!isNewerBuildId(buildId, artifact.buildId)) {
-      continue;
-    }
-
-    artifact.buildId = buildId;
-    artifact.downloadUrl = downloadUrl;
-  }
-
-  if (artifact.buildId.isEmpty()) {
-    reportError(String("No valid release files found in ") + path);
-    return false;
-  }
-
-  return true;
+  return readArtifactFromManifest(doc["firmware"], "firmware", firmwareArtifact, manifestUrl, reportError) &&
+         readArtifactFromManifest(doc["spiffs"], "spiffs", spiffsArtifact, manifestUrl, reportError);
 }
 
 String readSpiffsBuildId(const char *versionFilePath) {
@@ -169,7 +199,7 @@ bool applyRemoteArtifact(const RemoteArtifact &artifact,
 
   const int httpCode = http.GET();
   if (httpCode != HTTP_CODE_OK) {
-    reportError(String("Download failed for ") + artifact.buildId + ": HTTP " + httpCode);
+    reportError(formatHttpFailure("Download failed", artifact.downloadUrl, httpCode));
     http.end();
     return false;
   }
