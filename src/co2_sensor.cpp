@@ -118,10 +118,27 @@ bool disableSelfCalibration() {
   return true; 
 }
 
+bool resumeMeasurementIfRunning() {
+  uint16_t readyWord = 0;
+  if (!readWords(kCommandGetDataReadyStatus, &readyWord, 1)) {
+    return false;
+  }
+
+  g_connected = true;
+  g_measuring = true;
+  g_error = (readyWord & 0x07FFU) != 0U ? "resumed" : "waiting for sample";
+  g_lastPollMs = 0;
+  return true;
+}
+
 bool startMeasurement() {
   if (!probeSensor()) {
     setDisconnected("sensor probe failed");
     return false;
+  }
+
+  if (resumeMeasurementIfRunning()) {
+    return true;
   }
 
   // The SCD41 can still be in periodic mode after an ESP32-only reset.
