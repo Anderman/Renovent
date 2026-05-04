@@ -274,25 +274,3 @@ DisplaySnapshot getDisplaySnapshot()
     snapshot.activeKeys = getActiveKeys();
     return snapshot;
 }
-
-DisplayReaderStats getDisplayReaderStats()
-{
-    DisplayReaderStats stats{};
-    portENTER_CRITICAL(&g_frameReadyMux);
-    stats.completeFrameCount = g_completeFrameCount;
-    stats.missedSelectFrameCount = g_missedSelectFrameCount;
-    portEXIT_CRITICAL(&g_frameReadyMux);
-    stats.publishedFrameCount = g_publishedFrameCount;
-    stats.missedSelectPercent = toMissedSelectPercent(stats.completeFrameCount, stats.missedSelectFrameCount);
-    return stats;
-}
-
-void getDisplayDigitMasks(uint8_t (&digitMasks)[4])
-{
-    portENTER_CRITICAL(&g_displayMux);
-    for (uint8_t digitIndex = 0; digitIndex < 4; ++digitIndex)
-    {
-        digitMasks[digitIndex] = g_snapshotDigitMasks[digitIndex];
-    }
-    portEXIT_CRITICAL(&g_displayMux);
-}
