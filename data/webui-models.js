@@ -114,7 +114,6 @@ export function mapStatusSnapshot(status) {
 			["SPIFFS", status.spiffsBuildId ?? "--"],
 			["RSSI", status.rssi !== undefined ? `${status.rssi} dBm` : "--"],
 			["Actieve toets", status.activeKeys ?? "--"],
-			["Laatste display", status.loggedDisplayText ?? "--"],
 			["Laatste OTA check", lastCheckText],
 			["OTA fout", status.autoUpdateLastError || "--"],
 			["Core dump", coreDumpText],

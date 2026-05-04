@@ -227,21 +227,14 @@ void keyWriterOnDisplayTextChanged(const char *displayText)
   portEXIT_CRITICAL(&g_keyWriterMux);
 }
 
-KeyPressLogSummary getKeyPressLogSummary()
+uint16_t getKeyPressLogCount()
 {
-  KeyPressLogSummary status{};
-  const uint32_t now = millis();
-
+  uint16_t count = 0;
   portENTER_CRITICAL(&g_keyWriterMux);
-  status.activeMask = g_loggedActiveMask;
-  status.activeRelativeMs = g_loggedActiveMask == kKeyNone ? 0 : relativeMsFor(now);
-  status.releaseForMs = currentReleaseForMs(now);
-  copyKeyText(status.activeKeys, g_loggedActiveMask);
-  copyDisplayText(status.lastDisplayText, g_lastDisplayText);
-  status.count = g_logCount;
+  count = g_logCount;
   portEXIT_CRITICAL(&g_keyWriterMux);
 
-  return status;
+  return count;
 }
 
 bool getKeyPressLogEntryNewestFirst(uint16_t newestFirstIndex, KeyPressLogEntry &entry)

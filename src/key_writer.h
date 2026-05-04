@@ -15,20 +15,11 @@ struct KeyPressLogEntry {
 	char display[9];
 };
 
-struct KeyPressLogSummary {
-	uint8_t activeMask;
-	uint32_t activeRelativeMs;
-	uint32_t releaseForMs;
-	char activeKeys[24];
-	char lastDisplayText[9];
-	uint16_t count;
-};
-
 void keyWriterSetup();
 void keyWriterLoop();
 void pressKeys(uint8_t activeKeys);
 void pulseKeys(uint8_t activeKeys, uint32_t holdMs);
 void keyWriterOnSelectIndex(uint8_t selectIndex);
 void keyWriterOnDisplayTextChanged(const char *displayText);
-KeyPressLogSummary getKeyPressLogSummary();
+uint16_t getKeyPressLogCount();
 bool getKeyPressLogEntryNewestFirst(uint16_t newestFirstIndex, KeyPressLogEntry &entry);

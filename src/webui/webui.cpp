@@ -86,7 +86,6 @@ void handleStatus() {
   const Co2SensorStatus co2Status = getCo2SensorStatus();
   const SensorsMenuStatus sensorsMenuStatus = getSensorsMenuStatus();
   const AutoUpdateStatus &autoUpdateStatus = getAutoUpdateStatus();
-  const KeyPressLogSummary keyPressLogStatus = getKeyPressLogSummary();
   const ResetInfoStatus resetInfoStatus = getResetInfoStatus();
   const SettingWriterStatus settingWriterStatus = getSettingWriterStatus();
   const SettingsMenuStatus settingsMenuStatus = getSettingsMenuStatus();
@@ -109,10 +108,6 @@ void handleStatus() {
   doc["coreDumpBacktraceCorrupted"] = resetInfoStatus.coreDumpBacktraceCorrupted;
   doc["displayText"] = snapshot.text;
   doc["activeKeys"] = activeKeys;
-  doc["loggedActiveKeys"] = keyPressLogStatus.activeKeys;
-  doc["loggedActiveRelativeMs"] = keyPressLogStatus.activeRelativeMs;
-  doc["loggedReleaseForMs"] = keyPressLogStatus.releaseForMs;
-  doc["loggedDisplayText"] = keyPressLogStatus.lastDisplayText;
   doc["co2Connected"] = co2Status.connected;
   doc["co2Measuring"] = co2Status.measuring;
   doc["co2Valid"] = co2Status.dataValid;
@@ -169,13 +164,13 @@ void handleStatus() {
 }
 
 void handleKeyPressLogGet() {
-  const KeyPressLogSummary keyPressLogStatus = getKeyPressLogSummary();
-  const uint16_t returnedKeyLogEntries = keyPressLogStatus.count > kMaxKeyLogApiEntries
+  const uint16_t keyPressLogCount = getKeyPressLogCount();
+  const uint16_t returnedKeyLogEntries = keyPressLogCount > kMaxKeyLogApiEntries
       ? kMaxKeyLogApiEntries
-      : keyPressLogStatus.count;
+      : keyPressLogCount;
 
   JsonDocument doc;
-  doc["totalCount"] = keyPressLogStatus.count;
+  doc["totalCount"] = keyPressLogCount;
   doc["returnedCount"] = returnedKeyLogEntries;
 
   JsonArray keyPressLog = doc["entries"].to<JsonArray>();
