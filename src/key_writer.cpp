@@ -1,5 +1,7 @@
 #include "key_writer.h"
 
+#include "key_writer_internal.h"
+
 #include <cstring>
 
 #include <soc/gpio_struct.h>
@@ -194,7 +196,7 @@ void pulseKeys(uint8_t activeKeys, uint32_t holdMs)
   portEXIT_CRITICAL(&g_keyWriterMux);
 }
 
-void keyWriterOnSelectIndex(uint8_t selectIndex)
+void keyWriterApplySelectIndexHook(uint8_t selectIndex)
 {
   const bool active = isKeyPhaseActive(g_injectedKeys, selectIndex);
   if (active)
@@ -206,7 +208,7 @@ void keyWriterOnSelectIndex(uint8_t selectIndex)
   GPIO.out1_w1tc.val = kKeyDownMask;
 }
 
-void keyWriterOnDisplayTextChanged(const char *displayText)
+void keyWriterOnDisplayChangedHook(const char *displayText)
 {
   const uint32_t now = millis();
 
@@ -227,28 +229,22 @@ void keyWriterOnDisplayTextChanged(const char *displayText)
   portEXIT_CRITICAL(&g_keyWriterMux);
 }
 
-uint16_t getKeyPressLogCount()
+uint16_t copyKeyPressLogEntries(KeyPressLogEntry *entries, uint16_t maxEntries)
 {
-  uint16_t count = 0;
-  portENTER_CRITICAL(&g_keyWriterMux);
-  count = g_logCount;
-  portEXIT_CRITICAL(&g_keyWriterMux);
-
-  return count;
-}
-
-bool getKeyPressLogEntryNewestFirst(uint16_t newestFirstIndex, KeyPressLogEntry &entry)
-{
-  bool available = false;
-
-  portENTER_CRITICAL(&g_keyWriterMux);
-  if (newestFirstIndex < g_logCount)
+  if (entries == nullptr || maxEntries == 0)
   {
-    const uint16_t sourceIndex = static_cast<uint16_t>((g_logNextIndex + kMaxLogEntries - 1U - newestFirstIndex) % kMaxLogEntries);
-    entry = g_logEntries[sourceIndex];
-    available = entry.available;
+    return 0;
+  }
+
+  uint16_t copiedCount = 0;
+  portENTER_CRITICAL(&g_keyWriterMux);
+  copiedCount = g_logCount < maxEntries ? g_logCount : maxEntries;
+  for (uint16_t index = 0; index < copiedCount; ++index)
+  {
+    const uint16_t sourceIndex = static_cast<uint16_t>((g_logNextIndex + kMaxLogEntries - 1U - index) % kMaxLogEntries);
+    entries[index] = g_logEntries[sourceIndex];
   }
   portEXIT_CRITICAL(&g_keyWriterMux);
 
-  return available;
+  return copiedCount;
 }

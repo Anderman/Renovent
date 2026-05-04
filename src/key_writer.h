@@ -19,7 +19,4 @@ void keyWriterSetup();
 void keyWriterLoop();
 void pressKeys(uint8_t activeKeys);
 void pulseKeys(uint8_t activeKeys, uint32_t holdMs);
-void keyWriterOnSelectIndex(uint8_t selectIndex);
-void keyWriterOnDisplayTextChanged(const char *displayText);
-uint16_t getKeyPressLogCount();
-bool getKeyPressLogEntryNewestFirst(uint16_t newestFirstIndex, KeyPressLogEntry &entry);
+uint16_t copyKeyPressLogEntries(KeyPressLogEntry *entries, uint16_t maxEntries);

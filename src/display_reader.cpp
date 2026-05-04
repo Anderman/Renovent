@@ -5,7 +5,7 @@
 #include "display_codec.h"
 #include "display_segments.h"
 #include "keypad.h"
-#include "key_writer.h"
+#include "key_writer_internal.h"
 #include "pins.h"
 
 namespace
@@ -118,7 +118,7 @@ namespace
         }
         portEXIT_CRITICAL(&g_displayMux);
 
-        keyWriterOnDisplayTextChanged(g_snapshot.text);
+        keyWriterOnDisplayChangedHook(g_snapshot.text);
         g_publishedFrameCount = g_publishedFrameCount + 1U;
         keypadCommitActiveKeys(activeKeys);
     }
@@ -221,7 +221,7 @@ namespace
 
         g_isrLastSelectIndex = selectIndex;
 
-        keyWriterOnSelectIndex(selectIndex);
+        keyWriterApplySelectIndexHook(selectIndex);
         applySampleFromSnapshot(selectIndex, gpioSnapshot);
 
         if (selectIndex == 7U)

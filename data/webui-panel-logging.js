@@ -29,11 +29,7 @@ export function renderLoggingPanel(elements, state) {
 	}
 
 	const firmwareLogs = Array.isArray(state.keyPressLog?.entries) ? state.keyPressLog.entries : [];
-	const totalFirmwareLogs = Number(state.keyPressLog?.totalCount ?? firmwareLogs.length);
-	const returnedFirmwareLogs = Number(state.keyPressLog?.returnedCount ?? firmwareLogs.length);
-	const noteText = totalFirmwareLogs > returnedFirmwareLogs
-		? `Laatste ${returnedFirmwareLogs} van ${totalFirmwareLogs} regels via /api/key-press-log`
-		: `Alle ${returnedFirmwareLogs} regels via /api/key-press-log`;
+	const noteText = `${firmwareLogs.length} regels via /api/key-press-log`;
 
 	elements.firmwareLogOutput.innerHTML = firmwareLogs.length
 		? `

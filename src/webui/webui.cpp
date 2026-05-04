@@ -21,7 +21,8 @@ WebServer server(80);
 
 namespace {
 bool g_spiffsOk = false;
-constexpr uint16_t kMaxKeyLogApiEntries = 60;
+constexpr uint16_t kMaxKeyLogApiEntries = 240;
+KeyPressLogEntry g_keyPressLogApiEntries[kMaxKeyLogApiEntries] = {};
 
 const char *contentTypeForPath(const String &path) {
   if (path.endsWith(".html")) {
@@ -164,21 +165,13 @@ void handleStatus() {
 }
 
 void handleKeyPressLogGet() {
-  const uint16_t keyPressLogCount = getKeyPressLogCount();
-  const uint16_t returnedKeyLogEntries = keyPressLogCount > kMaxKeyLogApiEntries
-      ? kMaxKeyLogApiEntries
-      : keyPressLogCount;
+  const uint16_t returnedKeyLogEntries = copyKeyPressLogEntries(g_keyPressLogApiEntries, kMaxKeyLogApiEntries);
 
   JsonDocument doc;
-  doc["totalCount"] = keyPressLogCount;
-  doc["returnedCount"] = returnedKeyLogEntries;
 
   JsonArray keyPressLog = doc["entries"].to<JsonArray>();
   for (uint16_t index = 0; index < returnedKeyLogEntries; ++index) {
-    KeyPressLogEntry logEntry{};
-    if (!getKeyPressLogEntryNewestFirst(index, logEntry)) {
-      continue;
-    }
+    const KeyPressLogEntry &logEntry = g_keyPressLogApiEntries[index];
     JsonObject entry = keyPressLog.add<JsonObject>();
     entry["event"] = logEntry.event;
     entry["keys"] = logEntry.keys;
