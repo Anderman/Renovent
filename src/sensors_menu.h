@@ -18,6 +18,14 @@ struct SensorsMenuValueItem {
   int32_t value;
 };
 
+struct SensorsMenuUnknownEntry {
+  bool available;
+  char key[4];
+  char rawValue[9];
+  bool hasValue;
+  int32_t value;
+};
+
 struct SensorsMenuDefinition {
   const char *example;
   const char *description;
@@ -40,6 +48,7 @@ struct SensorsMenuStatus {
   char lastDisplayText[9];
   SensorsMenuCapturedEntry entries[13];
   SensorsMenuValueItem values[14];
+  SensorsMenuUnknownEntry unknownEntries[8];
 };
 
 void sensorsMenuSetup();

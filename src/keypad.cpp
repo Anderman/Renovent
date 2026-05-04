@@ -1,5 +1,7 @@
 #include "keypad.h"
 
+#include "keypad_internal.h"
+
 #include "pins.h"
 
 namespace {
@@ -39,30 +41,14 @@ void keypadSetup() {
   pinMode(pins::kKeyNode, INPUT);
 }
 
-void keypadOnStableIndex(uint8_t selectIndex, bool keyPressed) {
-  if (keyPressed) {
-    const uint8_t detectedKeyMask = keyMaskForSelectIndex(selectIndex);
-    if (detectedKeyMask != kKeyNone) {
-      g_workingActiveKeys |= detectedKeyMask;
-    }
-  }
-
-  if (selectIndex == 7) {
-    portENTER_CRITICAL(&g_keyMux);
-    g_snapshotActiveKeys = g_workingActiveKeys;
-    g_workingActiveKeys = kKeyNone;
-    portEXIT_CRITICAL(&g_keyMux);
-  }
-}
-
-void keypadCommitActiveKeys(uint8_t activeKeys) {
+void keypadPublishActiveKeysHook(uint8_t activeKeys) {
   portENTER_CRITICAL(&g_keyMux);
   g_snapshotActiveKeys = activeKeys;
   g_workingActiveKeys = kKeyNone;
   portEXIT_CRITICAL(&g_keyMux);
 }
 
-uint8_t getActiveKeys() {
+uint8_t keypadGetActiveKeys() {
   uint8_t activeKeys = kKeyNone;
 
   portENTER_CRITICAL(&g_keyMux);

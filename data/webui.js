@@ -212,7 +212,11 @@ async function fetchStatus() {
 async function syncSensorsSnapshot() {
 	const completedMs = Number(state.status?.sensorsMenuLastCompletedMs ?? 0);
 	const loadedMs = Number(state.sensorsPayload?.lastCompletedMs ?? 0);
-	if (completedMs === 0 || completedMs === loadedMs || state.status?.sensorsMenuRunning) {
+	if (state.status?.sensorsMenuRunning) {
+		return;
+	}
+
+	if (state.sensorsPayload !== null && (completedMs === 0 || completedMs === loadedMs)) {
 		return;
 	}
 

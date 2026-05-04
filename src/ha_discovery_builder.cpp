@@ -1,9 +1,24 @@
-#include "mqtt_discovery_payload.h"
+#include "ha_discovery_builder.h"
 
 #include <ArduinoJson.h>
 #include <cstring>
 
+#include "mqtt_topics.h"
+
 namespace {
+
+const char *platformToDiscoverySegment(HaEntityPlatform platform) {
+  switch (platform) {
+    case HaEntityPlatform::Number:
+      return "number";
+    case HaEntityPlatform::Select:
+      return "select";
+    case HaEntityPlatform::Sensor:
+      return "sensor";
+  }
+
+  return "sensor";
+}
 
 constexpr char kAvailabilityPayloadOnline[] = "online";
 constexpr char kAvailabilityPayloadOffline[] = "offline";
@@ -18,18 +33,9 @@ bool shouldIncludeDeviceClass(const HaEntityDefinition &definition) {
            definition.optionCount == 0);
 }
 
-String buildRenoventRootTopic(const String &nodeId) {
-  return String("renovent/") + nodeId;
-}
-
-String buildStateTopic(const String &nodeId, const char *key) {
-  const HaRootDefinition &root = getHaRootDefinition();
-  return buildRenoventRootTopic(nodeId) + "/" + root.stateTopicRoot + "/" + key;
-}
-
-String buildCommandTopic(const String &nodeId, const char *key) {
-  const HaRootDefinition &root = getHaRootDefinition();
-  return buildRenoventRootTopic(nodeId) + "/" + root.commandTopicRoot + "/" + key;
+String buildDiscoveryTopic(const String &nodeId, const HaEntityDefinition &definition) {
+  return String("homeassistant/") + platformToDiscoverySegment(definition.platform) + "/" +
+         nodeId + "/" + definition.objectId + "/config";
 }
 
 void populateCommonPayloadFields(JsonDocument &doc,
@@ -78,8 +84,7 @@ void populateCommonPayloadFields(JsonDocument &doc,
 void populateSensorPayload(JsonDocument &doc,
                            const String &nodeId,
                            const HaEntityDefinition &definition) {
-  doc["state_topic"] = buildStateTopic(nodeId, definition.key);
-
+  doc["state_topic"] = mqttBuildStateTopic(nodeId, definition.key);
   if (shouldIncludeDeviceClass(definition)) {
     doc["device_class"] = definition.deviceClass;
   }
@@ -97,8 +102,8 @@ void populateSensorPayload(JsonDocument &doc,
 void populateNumberPayload(JsonDocument &doc,
                            const String &nodeId,
                            const HaEntityDefinition &definition) {
-  doc["state_topic"] = buildStateTopic(nodeId, definition.key);
-  doc["command_topic"] = buildCommandTopic(nodeId, definition.key);
+  doc["state_topic"] = mqttBuildStateTopic(nodeId, definition.key);
+  doc["command_topic"] = mqttBuildCommandTopic(nodeId, definition.key);
   doc["optimistic"] = false;
 
   if (definition.hasMin) {
@@ -118,8 +123,8 @@ void populateNumberPayload(JsonDocument &doc,
 void populateSelectPayload(JsonDocument &doc,
                            const String &nodeId,
                            const HaEntityDefinition &definition) {
-  doc["state_topic"] = buildStateTopic(nodeId, definition.key);
-  doc["command_topic"] = buildCommandTopic(nodeId, definition.key);
+  doc["state_topic"] = mqttBuildStateTopic(nodeId, definition.key);
+  doc["command_topic"] = mqttBuildCommandTopic(nodeId, definition.key);
   doc["optimistic"] = false;
 
   JsonArray options = doc["options"].to<JsonArray>();
@@ -130,11 +135,11 @@ void populateSelectPayload(JsonDocument &doc,
 
 }  // namespace
 
-bool buildHaDiscoveryPayload(String &payload,
-                             const String &nodeId,
-                             const String &availabilityTopic,
-                             const String &firmwareBuildId,
-                             const HaEntityDefinition &definition) {
+bool buildHaDiscoveryConfigMessage(HaDiscoveryConfigMessage &message,
+                                   const String &nodeId,
+                                   const String &availabilityTopic,
+                                   const String &firmwareBuildId,
+                                   const HaEntityDefinition &definition) {
   JsonDocument doc;
   populateCommonPayloadFields(doc, nodeId, availabilityTopic, firmwareBuildId, definition);
 
@@ -150,6 +155,7 @@ bool buildHaDiscoveryPayload(String &payload,
       break;
   }
 
-  payload = "";
-  return serializeJson(doc, payload) > 0;
+  message = HaDiscoveryConfigMessage{};
+  message.topic = buildDiscoveryTopic(nodeId, definition);
+  return serializeJson(doc, message.payload) > 0;
 }

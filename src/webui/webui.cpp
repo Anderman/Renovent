@@ -10,7 +10,7 @@
 #include "../keypad.h"
 #include "../key_writer.h"
 #include "../mqtt_config.h"
-#include "../mqtt_discovery.h"
+#include "../mqtt_runtime.h"
 #include "../ota/auto_update.h"
 #include "../parameter_definitions.h"
 #include "../reset_info.h"
@@ -231,6 +231,20 @@ void handleSensorsMenuGet() {
     value["value"] = sensorsMenuStatus.values[index].value;
   }
 
+  JsonArray unknownEntries = doc["unknownEntries"].to<JsonArray>();
+  for (uint8_t index = 0; index < 8; ++index) {
+    const SensorsMenuUnknownEntry &unknownEntry = sensorsMenuStatus.unknownEntries[index];
+    if (!unknownEntry.available) {
+      continue;
+    }
+
+    JsonObject entry = unknownEntries.add<JsonObject>();
+    entry["key"] = unknownEntry.key;
+    entry["rawValue"] = unknownEntry.rawValue;
+    entry["hasValue"] = unknownEntry.hasValue;
+    entry["value"] = unknownEntry.value;
+  }
+
   String output;
   serializeJson(doc, output);
   sendCorsHeaders();
@@ -347,7 +361,7 @@ void handleMqttConfigPost() {
   const bool saved = updateMqttConfig(nextConfig);
   const MqttConfig &savedConfig = getMqttConfig();
   if (saved) {
-    mqttDiscoveryConfigChanged();
+    mqttRuntimeResetSession();
   }
 
   JsonDocument response;
@@ -371,7 +385,8 @@ void handleKeyPress() {
 
   const int requestedMask = doc["mask"] | 0;
   const uint32_t durationMs = doc["durationMs"] | 0;
-  const bool allowed = requestedMask >= 0 && requestedMask <= 15;
+  const bool busy = sensorsMenuIsBusy() || settingsMenuIsBusy() || settingWriterIsBusy();
+  const bool allowed = !busy && requestedMask >= 0 && requestedMask <= 15;
   if (allowed) {
     if (durationMs > 0) {
       pulseKeys(static_cast<uint8_t>(requestedMask), durationMs);
@@ -382,6 +397,7 @@ void handleKeyPress() {
 
   JsonDocument response;
   response["accepted"] = allowed;
+  response["busy"] = busy;
   response["mask"] = allowed ? requestedMask : 0;
   response["durationMs"] = allowed ? durationMs : 0;
 

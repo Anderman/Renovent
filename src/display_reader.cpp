@@ -5,6 +5,7 @@
 #include "display_codec.h"
 #include "display_segments.h"
 #include "keypad.h"
+#include "keypad_internal.h"
 #include "key_writer_internal.h"
 #include "pins.h"
 
@@ -120,7 +121,7 @@ namespace
 
         keyWriterOnDisplayChangedHook(g_snapshot.text);
         g_publishedFrameCount = g_publishedFrameCount + 1U;
-        keypadCommitActiveKeys(activeKeys);
+        keypadPublishActiveKeysHook(activeKeys);
     }
 
     uint8_t toMissedSelectPercent(uint32_t completeFrames, uint32_t missedFrames)
@@ -271,6 +272,6 @@ DisplaySnapshot getDisplaySnapshot()
     portENTER_CRITICAL(&g_displayMux);
     snapshot = g_snapshot;
     portEXIT_CRITICAL(&g_displayMux);
-    snapshot.activeKeys = getActiveKeys();
+    snapshot.activeKeys = keypadGetActiveKeys();
     return snapshot;
 }

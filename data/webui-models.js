@@ -42,7 +42,7 @@ export function mapSettingsEntries(entries, definitions) {
 export function mapSensorEntries(payload) {
 	const values = Array.isArray(payload?.values) ? payload.values : [];
 	if (values.length) {
-		return values.map((entry) => ({
+		const mappedValues = values.map((entry) => ({
 			index: entry.index,
 			description: entry.description ?? "",
 			unit: entry.unit ?? "",
@@ -52,6 +52,18 @@ export function mapSensorEntries(payload) {
 			value: entry.value,
 			valueDisplay: Boolean(entry.available) && Boolean(entry.hasValue) ? String(entry.value) : "--"
 		}));
+		const unknownEntries = Array.isArray(payload?.unknownEntries) ? payload.unknownEntries : [];
+		const mappedUnknownEntries = unknownEntries.map((entry) => ({
+			index: `? ${entry.key ?? ""}`.trim(),
+			description: `Onbekende sensor ${entry.key ?? ""}`.trim(),
+			unit: "",
+			remark: entry.rawValue ?? "",
+			available: true,
+			hasValue: Boolean(entry.hasValue),
+			value: entry.value,
+			valueDisplay: Boolean(entry.hasValue) ? String(entry.value) : (entry.rawValue ?? "--")
+		}));
+		return [...mappedValues, ...mappedUnknownEntries];
 	}
 
 	const entries = Array.isArray(payload?.entries) ? payload.entries : [];
