@@ -293,8 +293,14 @@ async function setValue() {
 
 	try {
 		const result = await postSetValue(id, value);
-		elements.setValueResult.textContent = result.message ?? "Waarde verstuurd.";
-		logAction(`Waarde gezet: ${id}=${value}`);
+		const displayText = result.displayText ? ` Huidige display: ${result.displayText}.` : "";
+		elements.setValueResult.textContent = result.message
+			?? (result.scheduled ? "Waarde verstuurd." : `Schrijfactie geweigerd.${displayText}`);
+		if (result.scheduled) {
+			logAction(`Waarde gezet: ${id}=${value}`);
+		} else {
+			logAction(`Set value geweigerd: ${result.reason ?? "unknown"}${displayText}`);
+		}
 	} catch (error) {
 		elements.setValueResult.textContent = error.message;
 		logAction(`Set value fout: ${error.message}`);

@@ -295,17 +295,39 @@ void handleSetValue() {
 
   const char *requestedKey = doc["key"] | "";
   const int32_t requestedValue = doc["value"] | 0;
-  const bool scheduled = requestSettingWrite(requestedKey, requestedValue);
+  const SettingWriteResult result = requestSettingWriteDetailed(requestedKey, requestedValue);
+
+  const char *reason = "none";
+  const char *message = "Waarde ingepland.";
+  switch (result.rejectReason) {
+    case SettingWriteRejectReason::Busy:
+      reason = "busy";
+      message = "Schrijfactie geweigerd: menu of writer is al bezig.";
+      break;
+    case SettingWriteRejectReason::InvalidKey:
+      reason = "invalid_key";
+      message = "Schrijfactie geweigerd: ongeldige firmware-key.";
+      break;
+    case SettingWriteRejectReason::InvalidStartDisplay:
+      reason = "invalid_start_display";
+      message = "Schrijfactie geweigerd: start vanaf het homescherm 0./1./2./3..";
+      break;
+    case SettingWriteRejectReason::None:
+      break;
+  }
 
   JsonDocument response;
-  response["scheduled"] = scheduled;
-  response["key"] = scheduled ? requestedKey : "";
-  response["value"] = scheduled ? requestedValue : 0;
+  response["scheduled"] = result.scheduled;
+  response["reason"] = reason;
+  response["message"] = message;
+  response["key"] = result.scheduled ? result.key : "";
+  response["value"] = result.scheduled ? result.targetValue : 0;
+  response["displayText"] = result.displayText;
 
   String output;
   serializeJson(response, output);
   sendCorsHeaders();
-  server.send(scheduled ? 202 : 409, "application/json", output);
+  server.send(result.scheduled ? 202 : 409, "application/json", output);
 }
 
 void handleSensorsMenuStart() {

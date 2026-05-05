@@ -2,6 +2,21 @@
 
 #include <Arduino.h>
 
+enum class SettingWriteRejectReason : uint8_t {
+  None,
+  Busy,
+  InvalidKey,
+  InvalidStartDisplay,
+};
+
+struct SettingWriteResult {
+  bool scheduled;
+  SettingWriteRejectReason rejectReason;
+  char key[4];
+  int32_t targetValue;
+  char displayText[9];
+};
+
 struct SettingWriterStatus {
   bool running;
   char key[4];
@@ -14,6 +29,7 @@ struct SettingWriterStatus {
 
 void settingWriterSetup();
 void settingWriterLoop();
+SettingWriteResult requestSettingWriteDetailed(const char *key, int32_t value);
 bool requestSettingWrite(const char *key, int32_t value);
 bool settingWriterIsBusy();
 SettingWriterStatus getSettingWriterStatus();

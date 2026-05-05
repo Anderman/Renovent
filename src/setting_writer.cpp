@@ -434,23 +434,36 @@ void settingWriterLoop()
   runCurrentStep(millis());
 }
 
-bool requestSettingWrite(const char *key, int32_t value)
+SettingWriteResult requestSettingWriteDetailed(const char *key, int32_t value)
 {
+  SettingWriteResult result{};
+  result.scheduled = false;
+  result.rejectReason = SettingWriteRejectReason::None;
+  result.targetValue = value;
+
   if (g_state.running || sensorsMenuIsBusy() || settingsMenuIsBusy())
   {
-    return false;
+    result.rejectReason = SettingWriteRejectReason::Busy;
+    copyDisplayText(result.displayText, getDisplaySnapshot().text);
+    return result;
   }
 
   SettingWriteRequest request{};
   if (!parseRequestedKey(key, request))
   {
-    return false;
+    result.rejectReason = SettingWriteRejectReason::InvalidKey;
+    copyDisplayText(result.displayText, getDisplaySnapshot().text);
+    return result;
   }
 
+  std::memcpy(result.key, request.key, sizeof(result.key));
+
   const DisplaySnapshot snapshot = getDisplaySnapshot();
+  copyDisplayText(result.displayText, snapshot.text);
   if (!isValidSettingsStartDisplay(snapshot.text))
   {
-    return false;
+    result.rejectReason = SettingWriteRejectReason::InvalidStartDisplay;
+    return result;
   }
 
   request.targetValue = value;
@@ -458,7 +471,14 @@ bool requestSettingWrite(const char *key, int32_t value)
   g_state.running = true;
   g_state.request = request;
   copyDisplayText(g_state.lastDisplayText, snapshot.text);
-  return true;
+  result.scheduled = true;
+  result.rejectReason = SettingWriteRejectReason::None;
+  return result;
+}
+
+bool requestSettingWrite(const char *key, int32_t value)
+{
+  return requestSettingWriteDetailed(key, value).scheduled;
 }
 
 bool settingWriterIsBusy()

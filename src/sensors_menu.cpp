@@ -136,6 +136,14 @@ namespace
         return "idle";
     }
 
+    bool isValidSensorsStartDisplay(const char *displayText)
+    {
+        return startsWithDisplay(displayText, "0.") ||
+               startsWithDisplay(displayText, "1.") ||
+               startsWithDisplay(displayText, "2.") ||
+               startsWithDisplay(displayText, "3.");
+    }
+
     void clearDetail(char (&detail)[32])
     {
         detail[0] = '\0';
@@ -659,6 +667,12 @@ void sensorsMenuLoop()
 void startSensorsMenuScan()
 {
     if (g_scanState.running || settingsMenuIsBusy() || settingWriterIsBusy())
+    {
+        return;
+    }
+
+    const DisplaySnapshot snapshot = getDisplaySnapshot();
+    if (!isValidSensorsStartDisplay(snapshot.text))
     {
         return;
     }

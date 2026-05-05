@@ -60,11 +60,17 @@ export async function fetchLatestSensorsMenuData() {
 }
 
 export async function postSetValue(id, value) {
-	return getJson("/api/set-value", {
+	const response = await fetch("/api/set-value", {
 		method: "POST",
 		headers: { "Content-Type": "application/json" },
 		body: JSON.stringify({ key: id, value })
 	});
+	const text = await response.text();
+	const payload = text ? JSON.parse(text) : {};
+	if (!response.ok && response.status !== 409) {
+		throw new Error(`${response.status} ${response.statusText}`);
+	}
+	return payload;
 }
 
 export async function postKeyPress(keyMask, durationMs) {
