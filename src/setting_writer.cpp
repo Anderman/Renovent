@@ -13,12 +13,6 @@
 
 namespace
 {
-  enum class SettingMenuKind : uint8_t
-  {
-    Settings,
-    Sensors,
-  };
-
   enum class SettingWriterStepKind : uint8_t
   {
     FixedKey,
@@ -28,8 +22,6 @@ namespace
 
   struct SettingWriteRequest
   {
-    SettingMenuKind menuKind = SettingMenuKind::Settings;
-    uint8_t entryIndex = 0;
     char key[4] = {0};
     int32_t targetValue = 0;
   };
@@ -48,7 +40,6 @@ namespace
   {
     bool running = false;
     uint8_t currentStepIndex = 0;
-    uint8_t remainingNavigationSteps = 0;
     uint32_t phaseStartedMs = 0;
     uint32_t invalidDisplayStartedMs = 0;
     bool stepStarted = false;
@@ -61,23 +52,12 @@ namespace
 
   constexpr uint32_t kStepDisplayTimeoutMs = 2000;
   constexpr uint32_t kNavigationKeyDownMs = 160;
-  constexpr uint32_t kNavigationSettleMs = 250;
-  constexpr uint32_t kInstallerNavigationSettleMs = 500;
+  constexpr uint32_t kNavigationSettleMs = 500;
   constexpr uint32_t kAdjustHoldTimeoutMs = 4000;
 
-  constexpr SettingWriterStep kUserWriteScript[] = {
+  constexpr SettingWriterStep kWriteScript[] = {
       {"enter-settings-menu", SettingWriterStepKind::FixedKey, kKeyFunction, app_config::kMenuEnterHoldMs, 100, "U0"},
-      {"navigate-to-entry", SettingWriterStepKind::NavigateToEntry, kKeyPlus, 0, 0, nullptr},
-      {"open-entry", SettingWriterStepKind::FixedKey, kKeyOk, 450, 100, nullptr},
-      {"adjust-value", SettingWriterStepKind::AdjustValue, kKeyNone, 0, 150, nullptr},
-      {"save-value", SettingWriterStepKind::FixedKey, static_cast<KeyMask>(kKeyFunction | kKeyPlus), 450, 200, nullptr},
-      {"confirm-value", SettingWriterStepKind::FixedKey, kKeyOk, 160, 100, nullptr},
-      {"exit-menu", SettingWriterStepKind::FixedKey, kKeyFunction, app_config::kMenuExitHoldMs, 100, nullptr},
-  };
-
-  constexpr SettingWriterStep kInstallerWriteScript[] = {
-      {"enter-settings-menu", SettingWriterStepKind::FixedKey, kKeyFunction, app_config::kMenuEnterHoldMs, 100, "U0"},
-      {"enter-sensors-menu", SettingWriterStepKind::FixedKey, static_cast<KeyMask>(kKeyFunction | kKeyOk), app_config::kMenuEnterHoldMs, 500, nullptr},
+      {"enter-installer-menu", SettingWriterStepKind::FixedKey, static_cast<KeyMask>(kKeyFunction | kKeyOk), app_config::kMenuEnterHoldMs, 500, nullptr},
       {"navigate-to-entry", SettingWriterStepKind::NavigateToEntry, kKeyPlus, 0, 0, nullptr},
       {"open-entry", SettingWriterStepKind::FixedKey, kKeyOk, 450, 100, nullptr},
       {"adjust-value", SettingWriterStepKind::AdjustValue, kKeyNone, 0, 150, nullptr},
@@ -104,14 +84,8 @@ namespace
 
   const SettingWriterStep *currentScript(uint8_t &stepCount)
   {
-    if (g_state.request.menuKind == SettingMenuKind::Sensors)
-    {
-      stepCount = sizeof(kInstallerWriteScript) / sizeof(kInstallerWriteScript[0]);
-      return kInstallerWriteScript;
-    }
-
-    stepCount = sizeof(kUserWriteScript) / sizeof(kUserWriteScript[0]);
-    return kUserWriteScript;
+    stepCount = sizeof(kWriteScript) / sizeof(kWriteScript[0]);
+    return kWriteScript;
   }
 
   const char *currentPhaseName()
@@ -140,7 +114,7 @@ namespace
     }
 
     const char prefix = static_cast<char>(std::toupper(static_cast<unsigned char>(rawKey[0])));
-    if (prefix != 'U' && prefix != 'I')
+    if (prefix != 'U' && prefix != 'I' && prefix != 'P')
     {
       return false;
     }
@@ -158,21 +132,24 @@ namespace
 
     if (prefix == 'U')
     {
-      if (number < 0 || number > 8)
+      if (number < 1 || number > 8)
       {
         return false;
       }
-      request.menuKind = SettingMenuKind::Settings;
-      request.entryIndex = static_cast<uint8_t>(number);
     }
-    else
+    else if (prefix == 'I')
     {
       if (number < 1 || number > 19)
       {
         return false;
       }
-      request.menuKind = SettingMenuKind::Sensors;
-      request.entryIndex = static_cast<uint8_t>(number - 1);
+    }
+    else
+    {
+      if (number < 1 || number > 17)
+      {
+        return false;
+      }
     }
 
     std::snprintf(request.key, sizeof(request.key), "%c%d", prefix, number);
@@ -292,17 +269,21 @@ namespace
 
   void runNavigateToEntryStep(uint32_t now)
   {
-    if (g_state.remainingNavigationSteps == 0)
-    {
-      advanceToNextStep();
-      return;
-    }
-
     if (!g_state.stepStarted)
     {
       const DisplaySnapshot snapshot = getDisplaySnapshot();
       copyDisplayText(g_state.previousDisplayText, snapshot.text);
       copyDisplayText(g_state.lastDisplayText, snapshot.text);
+
+      char displayedKey[4] = {0};
+        if (parseDisplayKey(snapshot.text, displayedKey) &&
+          std::strncmp(displayedKey, g_state.request.key, sizeof(displayedKey)) == 0)
+      {
+        g_state.invalidDisplayStartedMs = 0;
+        advanceToNextStep();
+        return;
+      }
+
       startStep(now, kKeyPlus);
       return;
     }
@@ -316,10 +297,7 @@ namespace
       return;
     }
 
-    const uint32_t settleMs = g_state.request.menuKind == SettingMenuKind::Sensors
-                                  ? kInstallerNavigationSettleMs
-                                  : kNavigationSettleMs;
-    if (!isWaitCompleted(now, settleMs))
+    if (!isWaitCompleted(now, kNavigationSettleMs))
     {
       return;
     }
@@ -332,8 +310,22 @@ namespace
       return;
     }
 
+    char displayedKey[4] = {0};
+    if (!parseDisplayKey(snapshot.text, displayedKey))
+    {
+      updateInvalidDisplayTimer(now);
+      return;
+    }
+
     g_state.invalidDisplayStartedMs = 0;
-    --g_state.remainingNavigationSteps;
+
+    if (std::strncmp(displayedKey, g_state.request.key, sizeof(displayedKey)) == 0)
+    {
+      advanceToNextStep();
+      return;
+    }
+
+    copyDisplayText(g_state.previousDisplayText, snapshot.text);
     g_state.stepStarted = false;
     g_state.keysReleased = false;
   }
@@ -464,7 +456,6 @@ bool requestSettingWrite(const char *key, int32_t value)
   request.targetValue = value;
   g_state = SettingWriterState{};
   g_state.running = true;
-  g_state.remainingNavigationSteps = request.entryIndex;
   g_state.request = request;
   copyDisplayText(g_state.lastDisplayText, snapshot.text);
   return true;

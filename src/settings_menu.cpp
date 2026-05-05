@@ -96,47 +96,6 @@ namespace
                startsWithDisplay(displayText, "3.");
     }
 
-    bool parseUserSettingKey(const char *displayText, char (&key)[4])
-    {
-        if (displayText == nullptr)
-        {
-            return false;
-        }
-
-        uint8_t readIndex = 0;
-        while (displayText[readIndex] == ' ')
-        {
-            ++readIndex;
-        }
-
-        uint8_t writeIndex = 0;
-        while (displayText[readIndex] != '\0' && writeIndex < sizeof(key) - 1U)
-        {
-            const char current = displayText[readIndex++];
-            if (current == ' ')
-            {
-                continue;
-            }
-
-            if ((current >= 'a' && current <= 'z'))
-            {
-                key[writeIndex++] = static_cast<char>(current - 'a' + 'A');
-                continue;
-            }
-
-            if ((current >= 'A' && current <= 'Z') || (current >= '0' && current <= '9'))
-            {
-                key[writeIndex++] = current;
-                continue;
-            }
-
-            break;
-        }
-
-        key[writeIndex] = '\0';
-        return writeIndex > 0U;
-    }
-
     int8_t findEntryIndexByKey(const char *key)
     {
         for (uint8_t index = 0; index < g_state.count; ++index)
@@ -174,7 +133,7 @@ namespace
     bool setCurrentEntryKey(const char *displayText)
     {
         char parsedKey[4] = {0};
-        if (!parseUserSettingKey(displayText, parsedKey))
+        if (!parseDisplayKey(displayText, parsedKey))
         {
             return false;
         }
@@ -320,7 +279,7 @@ namespace
         case SettingsAction::SelectNextEntry:
         {
             char parsedKey[4] = {0};
-            if (!parseUserSettingKey(snapshot.text, parsedKey))
+            if (!parseDisplayKey(snapshot.text, parsedKey))
             {
                 return SettingStepResult::Pending;
             }
