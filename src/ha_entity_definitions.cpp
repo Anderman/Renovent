@@ -22,6 +22,13 @@ namespace
       {"AUTO", "AUTO"},
   };
 
+    constexpr HaSelectOptionDefinition kProportionalInputModeOptions[] = {
+      {"A", "Alleen 3-standenschakelaar"},
+      {"B", "Proportionele ingang 1"},
+      {"C", "Proportionele ingang 2"},
+      {"D", "Proportionele ingang 1 en 2"},
+    };
+
   constexpr HaSelectOptionDefinition kBinaryOptions[] = {
       {"0", "Uit"},
       {"1", "Aan"},
@@ -63,6 +70,21 @@ namespace
       {"3", "Beide ventilatoren"},
   };
 
+    constexpr HaSelectOptionDefinition kMakeContactCouplingOptions[] = {
+      {"0", "Niet gekoppeld"},
+      {"1", "Overrule vorstregeling"},
+      {"2", "Koppelen aan bypassvoorwaarden"},
+      {"3", "Koppelen aan vorstvoorwaarden"},
+      {"4", "Stuur bypassklep"},
+    };
+
+    constexpr HaSelectOptionDefinition kMakeContactModeOptions[] = {
+      {"0", "Volume naar absoluut minimum"},
+      {"1", "Volume volgens instelling 3-standenschakelaar"},
+      {"2", "Volume volgens stand 3 van de 3-standenschakelaar"},
+      {"3", "Ventilator uit"},
+    };
+
   constexpr HaEntityDefinition kHaEntityDefinitions[] = {
       {"co2_ppm", HaEntityPlatform::Sensor, HaEntitySourceType::Co2Status, "CO2", "co2_ppm", "co2_ppm", "sensor.renovent_co2_ppm", true, false, nullptr, "carbon_dioxide", "measurement", "ppm", 0, nullptr, 0, false, 0.0f, false, 0.0f, false, 0.0f, nullptr},
       {"co2_temperature", HaEntityPlatform::Sensor, HaEntitySourceType::Co2Status, "CO2 temperatuur", "co2_temperature", "co2_temperature", "sensor.renovent_co2_temperature", true, false, nullptr, "temperature", "measurement", "°C", 1, nullptr, 0, false, 0.0f, false, 0.0f, false, 0.0f, nullptr},
@@ -88,6 +110,8 @@ namespace
       {"U3", HaEntityPlatform::Number, HaEntitySourceType::Setting, "Volume stap 3", "U3", "U3", "number.renovent_u3", true, true, nullptr, nullptr, nullptr, nullptr, -1, nullptr, 0, true, 50.0f, true, 400.0f, true, 5.0f, "box"},
       {"U4", HaEntityPlatform::Number, HaEntitySourceType::Setting, "Minimum buitentemperatuur bypass", "U4", "U4", "number.renovent_u4", true, true, nullptr, "temperature", nullptr, "°C", 0, nullptr, 0, true, 5.0f, true, 20.0f, true, 1.0f, "box"},
       {"U5", HaEntityPlatform::Number, HaEntitySourceType::Setting, "Minimum binnentemperatuur bypass", "U5", "U5", "number.renovent_u5", true, true, nullptr, "temperature", nullptr, "°C", 0, nullptr, 0, true, 18.0f, true, 30.0f, true, 1.0f, "box"},
+      {"U6", HaEntityPlatform::Number, HaEntitySourceType::Setting, "Streeftemperatuur naverwarmer", "U6", "U6", "number.renovent_u6", true, true, nullptr, "temperature", nullptr, "°C", 0, nullptr, 0, true, 0.0f, true, 30.0f, true, 1.0f, "box"},
+      {"U7", HaEntityPlatform::Select, HaEntitySourceType::Setting, "Modus proportionele ingangen", "U7", "U7", "select.renovent_u7", true, true, nullptr, nullptr, nullptr, nullptr, -1, kProportionalInputModeOptions, sizeof(kProportionalInputModeOptions) / sizeof(kProportionalInputModeOptions[0]), false, 0.0f, false, 0.0f, false, 0.0f, nullptr},
       {"I1", HaEntityPlatform::Number, HaEntitySourceType::Setting, "Vaste onbalans", "I1", "I1", "number.renovent_i1", false, true, nullptr, nullptr, nullptr, nullptr, -1, nullptr, 0, true, -100.0f, true, 100.0f, true, 1.0f, "box"},
       {"I2", HaEntityPlatform::Select, HaEntitySourceType::Setting, "Geen contact stap", "I2", "I2", "select.renovent_i2", false, true, nullptr, nullptr, nullptr, nullptr, -1, kStageOptions, sizeof(kStageOptions) / sizeof(kStageOptions[0]), false, 0.0f, false, 0.0f, false, 0.0f, nullptr},
       {"I3", HaEntityPlatform::Select, HaEntitySourceType::Setting, "Perilex L2 stap", "I3", "I3", "select.renovent_i3", false, true, nullptr, nullptr, nullptr, nullptr, -1, kStage23Options, sizeof(kStage23Options) / sizeof(kStage23Options[0]), false, 0.0f, false, 0.0f, false, 0.0f, nullptr},
@@ -107,6 +131,23 @@ namespace
       {"I17", HaEntityPlatform::Number, HaEntitySourceType::Setting, "Repeatertijd", "I17", "I17", "number.renovent_i17", false, true, nullptr, "duration", nullptr, "h", 0, nullptr, 0, true, 1.0f, true, 24.0f, true, 1.0f, "box"},
       {"I18", HaEntityPlatform::Number, HaEntitySourceType::Setting, "Maximale uitschakeltijd ventilator(en)", "I18", "I18", "number.renovent_i18", false, true, nullptr, "duration", nullptr, "s", 0, nullptr, 0, true, 1.0f, true, 240.0f, true, 1.0f, "box"},
       {"I19", HaEntityPlatform::Number, HaEntitySourceType::Setting, "Minimale uitschakeltijd ventilator(en) na 230V", "I19", "I19", "number.renovent_i19", false, true, nullptr, "duration", nullptr, "s", 0, nullptr, 0, true, 1.0f, true, 240.0f, true, 1.0f, "box"},
+        {"P1", HaEntityPlatform::Number, HaEntitySourceType::Setting, "Toevoervolume bij calamiteit", "P1", "P1", "number.renovent_p1", false, true, nullptr, nullptr, nullptr, nullptr, -1, nullptr, 0, true, 0.0f, false, 0.0f, true, 1.0f, "box"},
+        {"P2", HaEntityPlatform::Number, HaEntitySourceType::Setting, "Afvoervolume bij calamiteit", "P2", "P2", "number.renovent_p2", false, true, nullptr, nullptr, nullptr, nullptr, -1, nullptr, 0, true, 0.0f, false, 0.0f, true, 1.0f, "box"},
+        {"P3", HaEntityPlatform::Number, HaEntitySourceType::Setting, "Slaapkamercorrectie toevoer", "P3", "P3", "number.renovent_p3", false, true, nullptr, nullptr, nullptr, nullptr, -1, nullptr, 0, true, -100.0f, true, 100.0f, true, 1.0f, "box"},
+        {"P4", HaEntityPlatform::Number, HaEntitySourceType::Setting, "Slaapkamercorrectie afvoer", "P4", "P4", "number.renovent_p4", false, true, nullptr, nullptr, nullptr, nullptr, -1, nullptr, 0, true, -100.0f, true, 100.0f, true, 1.0f, "box"},
+        {"P5", HaEntityPlatform::Select, HaEntitySourceType::Setting, "Koppeling maakcontact 1", "P5", "P5", "select.renovent_p5", false, true, nullptr, nullptr, nullptr, nullptr, -1, kMakeContactCouplingOptions, sizeof(kMakeContactCouplingOptions) / sizeof(kMakeContactCouplingOptions[0]), false, 0.0f, false, 0.0f, false, 0.0f, nullptr},
+        {"P6", HaEntityPlatform::Select, HaEntitySourceType::Setting, "Toevoermodus maakcontact 1", "P6", "P6", "select.renovent_p6", false, true, nullptr, nullptr, nullptr, nullptr, -1, kMakeContactModeOptions, sizeof(kMakeContactModeOptions) / sizeof(kMakeContactModeOptions[0]), false, 0.0f, false, 0.0f, false, 0.0f, nullptr},
+        {"P7", HaEntityPlatform::Select, HaEntitySourceType::Setting, "Afvoermodus maakcontact 1", "P7", "P7", "select.renovent_p7", false, true, nullptr, nullptr, nullptr, nullptr, -1, kMakeContactModeOptions, sizeof(kMakeContactModeOptions) / sizeof(kMakeContactModeOptions[0]), false, 0.0f, false, 0.0f, false, 0.0f, nullptr},
+        {"P8", HaEntityPlatform::Select, HaEntitySourceType::Setting, "Koppeling maakcontact 2", "P8", "P8", "select.renovent_p8", false, true, nullptr, nullptr, nullptr, nullptr, -1, kMakeContactCouplingOptions, sizeof(kMakeContactCouplingOptions) / sizeof(kMakeContactCouplingOptions[0]), false, 0.0f, false, 0.0f, false, 0.0f, nullptr},
+        {"P9", HaEntityPlatform::Select, HaEntitySourceType::Setting, "Toevoermodus maakcontact 2", "P9", "P9", "select.renovent_p9", false, true, nullptr, nullptr, nullptr, nullptr, -1, kMakeContactModeOptions, sizeof(kMakeContactModeOptions) / sizeof(kMakeContactModeOptions[0]), false, 0.0f, false, 0.0f, false, 0.0f, nullptr},
+        {"P10", HaEntityPlatform::Select, HaEntitySourceType::Setting, "Afvoermodus maakcontact 2", "P10", "P10", "select.renovent_p10", false, true, nullptr, nullptr, nullptr, nullptr, -1, kMakeContactModeOptions, sizeof(kMakeContactModeOptions) / sizeof(kMakeContactModeOptions[0]), false, 0.0f, false, 0.0f, false, 0.0f, nullptr},
+        {"P11", HaEntityPlatform::Number, HaEntitySourceType::Setting, "Streefspanning proportioneel 1", "P11", "P11", "number.renovent_p11", false, true, nullptr, "voltage", nullptr, "V", 0, nullptr, 0, true, 0.0f, true, 10.0f, true, 1.0f, "box"},
+        {"P12", HaEntityPlatform::Number, HaEntitySourceType::Setting, "Maximumspanning proportioneel 1", "P12", "P12", "number.renovent_p12", false, true, nullptr, "voltage", nullptr, "V", 0, nullptr, 0, true, 0.0f, true, 10.0f, true, 1.0f, "box"},
+        {"P13", HaEntityPlatform::Number, HaEntitySourceType::Setting, "Integratietijd proportioneel 1", "P13", "P13", "number.renovent_p13", false, true, nullptr, "duration", nullptr, "s", 0, nullptr, 0, true, 0.0f, true, 1250.0f, true, 1.0f, "box"},
+        {"P14", HaEntityPlatform::Number, HaEntitySourceType::Setting, "Streefspanning proportioneel 2", "P14", "P14", "number.renovent_p14", false, true, nullptr, "voltage", nullptr, "V", 0, nullptr, 0, true, 0.0f, true, 10.0f, true, 1.0f, "box"},
+        {"P15", HaEntityPlatform::Number, HaEntitySourceType::Setting, "Maximumspanning proportioneel 2", "P15", "P15", "number.renovent_p15", false, true, nullptr, "voltage", nullptr, "V", 0, nullptr, 0, true, 0.0f, true, 10.0f, true, 1.0f, "box"},
+        {"P16", HaEntityPlatform::Number, HaEntitySourceType::Setting, "Integratietijd proportioneel 2", "P16", "P16", "number.renovent_p16", false, true, nullptr, "duration", nullptr, "s", 0, nullptr, 0, true, 0.0f, true, 1250.0f, true, 1.0f, "box"},
+        {"P17", HaEntityPlatform::Select, HaEntitySourceType::Setting, "Voorverwarmer aan-afwezig", "P17", "P17", "select.renovent_p17", false, true, nullptr, nullptr, nullptr, nullptr, -1, kBinaryOptions, sizeof(kBinaryOptions) / sizeof(kBinaryOptions[0]), false, 0.0f, false, 0.0f, false, 0.0f, nullptr},
   };
 
 } // namespace
