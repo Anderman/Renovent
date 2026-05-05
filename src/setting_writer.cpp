@@ -72,7 +72,7 @@ namespace
       {"adjust-value", SettingWriterStepKind::AdjustValue, kKeyNone, 0, 150, nullptr},
       {"save-value", SettingWriterStepKind::FixedKey, static_cast<KeyMask>(kKeyFunction | kKeyPlus), 450, 200, nullptr},
       {"confirm-value", SettingWriterStepKind::FixedKey, kKeyOk, 160, 100, nullptr},
-      {"exit-menu", SettingWriterStepKind::FixedKey, kKeyFunction, 1000, 100, nullptr},
+      {"exit-menu", SettingWriterStepKind::FixedKey, kKeyFunction, app_config::kMenuExitHoldMs, 100, nullptr},
   };
 
   constexpr SettingWriterStep kInstallerWriteScript[] = {
@@ -83,7 +83,7 @@ namespace
       {"adjust-value", SettingWriterStepKind::AdjustValue, kKeyNone, 0, 150, nullptr},
       {"save-value", SettingWriterStepKind::FixedKey, static_cast<KeyMask>(kKeyFunction | kKeyPlus), 450, 200, nullptr},
       {"confirm-value", SettingWriterStepKind::FixedKey, kKeyOk, 160, 100, nullptr},
-      {"exit-menu", SettingWriterStepKind::FixedKey, kKeyFunction, 1000, 100, nullptr},
+      {"exit-menu", SettingWriterStepKind::FixedKey, kKeyFunction, app_config::kMenuExitHoldMs, 100, nullptr},
   };
 
   portMUX_TYPE g_settingWriterMux = portMUX_INITIALIZER_UNLOCKED;

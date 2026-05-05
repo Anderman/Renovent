@@ -65,7 +65,7 @@ namespace
         {"open-entry", kKeyOk, 500, 100, SettingsAction::CaptureCurrentValue},
         {"return-entry", kKeyOk, 160, 220, SettingsAction::ReturnToEntry},
         {"next-entry", kKeyPlus, 120, 150, SettingsAction::SelectNextEntry},
-        {"exit-menu", kKeyFunction, 1000, 100, SettingsAction::FinishRead},
+        {"exit-menu", kKeyFunction, app_config::kMenuExitHoldMs, 100, SettingsAction::FinishRead},
     };
 
     constexpr uint8_t kReadScriptStepCount = sizeof(kReadScript) / sizeof(kReadScript[0]);

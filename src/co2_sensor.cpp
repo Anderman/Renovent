@@ -16,6 +16,7 @@ constexpr uint16_t kCommandGetDataReadyStatus = 0xE4B8;
 constexpr uint32_t kPowerUpSettleMs = 1500;
 constexpr uint32_t kInitRetryIntervalMs = 5000;
 constexpr uint32_t kPollIntervalMs = 1000;
+constexpr uint32_t kFirstSampleTimeoutMs = 15000;
 constexpr uint32_t kStopMeasurementSettleMs = 500;
 
 TwoWire &g_wire = Wire;
@@ -30,6 +31,7 @@ float g_absoluteHumidityGm3 = 0.0f;
 uint32_t g_lastSampleMs = 0;
 uint32_t g_nextInitAttemptMs = 0;
 uint32_t g_lastPollMs = 0;
+uint32_t g_measurementStartedMs = 0;
 const char *g_error = "not initialized";
 
 uint8_t crc8(const uint8_t *data, size_t length) {
@@ -126,18 +128,19 @@ bool resumeMeasurementIfRunning() {
 
   g_connected = true;
   g_measuring = true;
+  g_measurementStartedMs = millis();
   g_error = (readyWord & 0x07FFU) != 0U ? "resumed" : "waiting for sample";
   g_lastPollMs = 0;
   return true;
 }
 
-bool startMeasurement() {
+bool startMeasurement(bool allowResume = true) {
   if (!probeSensor()) {
     setDisconnected("sensor probe failed");
     return false;
   }
 
-  if (resumeMeasurementIfRunning()) {
+  if (allowResume && resumeMeasurementIfRunning()) {
     return true;
   }
 
@@ -158,6 +161,7 @@ bool startMeasurement() {
 
   g_connected = true;
   g_measuring = true;
+  g_measurementStartedMs = millis();
   g_error = "warming up";
   g_lastPollMs = 0;
   return true;
@@ -208,6 +212,11 @@ void co2SensorLoop() {
     }
 
     startMeasurement();
+    return;
+  }
+
+  if (!g_dataValid && now - g_measurementStartedMs >= kFirstSampleTimeoutMs) {
+    startMeasurement(false);
     return;
   }
 

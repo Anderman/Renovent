@@ -17,6 +17,7 @@ namespace
     {
         ReadCurrentEntry,
         SelectNextEntry,
+        AdvanceScript,
         FinishRead,
     };
 
@@ -24,7 +25,8 @@ namespace
     {
         Pending,
         JumpToNextEntry,
-        JumpToExitMenu,
+        JumpToLeaveMenu,
+        AdvanceScript,
         Finish,
         Abort,
     };
@@ -61,7 +63,7 @@ namespace
     constexpr uint32_t kAutoScanIntervalMs = 60000;
     constexpr uint32_t kStepDisplayTimeoutMs = 2000;
     constexpr uint8_t kNextEntryStepIndex = 1;
-    constexpr uint8_t kExitMenuStepIndex = 2;
+    constexpr uint8_t kLeaveMenuStepIndex = 2;
 
     constexpr SensorsMenuDefinition kMenuDefinitions[13] = {
         {"2.200", "Actuele stand/afvoervolume", "Standenschakelaar 1, 2 of 3 plus ingesteld afvoervolume [m3/h]."},
@@ -99,7 +101,8 @@ namespace
     constexpr SensorsMenuStep kReadScript[] = {
         {"enter-sensors-menu", static_cast<KeyMask>(kKeyFunction | kKeyOk), app_config::kMenuEnterHoldMs, 100, SensorsAction::ReadCurrentEntry},
         {"next-entry", kKeyPlus, 150, 100, SensorsAction::SelectNextEntry},
-        {"exit-menu", kKeyFunction, 1000, 100, SensorsAction::FinishRead},
+        {"leave-sensors-menu", kKeyFunction, app_config::kMenuBackHoldMs, 100, SensorsAction::AdvanceScript},
+        {"exit-menu", kKeyFunction, app_config::kMenuExitHoldMs, 100, SensorsAction::FinishRead},
     };
 
     constexpr uint8_t kReadScriptStepCount = sizeof(kReadScript) / sizeof(kReadScript[0]);
@@ -572,13 +575,17 @@ namespace
             if (g_scanState.firstEntryKey[0] != '\0' &&
                 std::strncmp(parsedKey, g_scanState.firstEntryKey, sizeof(parsedKey)) == 0)
             {
-                result = SensorsStepResult::JumpToExitMenu;
+                result = SensorsStepResult::JumpToLeaveMenu;
                 break;
             }
 
             result = captureCurrentEntry(snapshot.text) ? SensorsStepResult::JumpToNextEntry : SensorsStepResult::Abort;
             break;
         }
+
+        case SensorsAction::AdvanceScript:
+            result = SensorsStepResult::AdvanceScript;
+            break;
 
         case SensorsAction::FinishRead:
             result = SensorsStepResult::Finish;
@@ -598,8 +605,12 @@ namespace
             advanceToStep(kNextEntryStepIndex);
             return;
 
-        case SensorsStepResult::JumpToExitMenu:
-            advanceToStep(kExitMenuStepIndex);
+        case SensorsStepResult::JumpToLeaveMenu:
+            advanceToStep(kLeaveMenuStepIndex);
+            return;
+
+        case SensorsStepResult::AdvanceScript:
+            advanceToNextStep();
             return;
 
         case SensorsStepResult::Finish:
