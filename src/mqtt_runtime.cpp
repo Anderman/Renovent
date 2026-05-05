@@ -4,14 +4,16 @@
 #include <WiFi.h>
 
 #include "ha_entity_definitions.h"
+#include "mqtt_discovery_publisher.h"
 #include "mqtt_config.h"
 #include "mqtt_command_handler.h"
+#include "mqtt_state_publisher.h"
 #include "mqtt_topics.h"
-#include "mqtt_writer.h"
 #include "setting_writer.h"
 #include "key_writer.h"
 #include "sensors_menu.h"
 #include "settings_menu.h"
+#include "ventilation_mode_state.h"
 
 #include <cstdlib>
 #include <cstring>
@@ -26,14 +28,22 @@ namespace
     constexpr uint32_t kVentilationModeHoldMs = 800;
     WiFiClient g_wifiClient;
     PubSubClient g_mqttClient(g_wifiClient);
+    bool g_publishDiscoveryPending = true;
     unsigned long g_lastConnectAttemptMs = 0;
-    MqttWriterState g_writerState;
 
     void resetMqttSessionState()
     {
-        mqttWriterResetState(g_writerState);
+        g_publishDiscoveryPending = true;
         g_lastConnectAttemptMs = 0;
         mqttCommandHandlerQueueClear();
+    }
+
+    void disconnectMqttIfConnected()
+    {
+        if (g_mqttClient.connected())
+        {
+            g_mqttClient.disconnect();
+        }
     }
 
     String buildNodeId()
@@ -69,21 +79,20 @@ namespace
     bool handleVentilationModeCommand(const char *payload)
     {
         uint8_t keyMask = static_cast<uint8_t>(kKeyOk | kKeyPlus);
-        const char *stateLabel = "AAN";
+        bool autoMode = false;
 
         if (std::strcmp(payload, "UIT") == 0)
         {
             keyMask = static_cast<uint8_t>(kKeyOk | kKeyMinus);
-            stateLabel = "UIT";
         }
         else if (std::strcmp(payload, "AUTO") == 0)
         {
             keyMask = static_cast<uint8_t>(kKeyOk | kKeyPlus);
-            stateLabel = "AAN";
+            autoMode = true;
         }
 
         pulseKeys(keyMask, kVentilationModeHoldMs);
-        mqttWriterSetVentilationModeLabel(g_writerState, stateLabel);
+        ventilationModeStateSetAutoMode(autoMode);
         return true;
     }
 
@@ -126,8 +135,8 @@ namespace
         }
 
         const bool handled = std::strcmp(definition->key, "ventilation_mode") == 0
-                                 ? handleVentilationModeCommand(command->payload)
-                                 : (mqttCommandHandlerIsNumericSettingKey(definition->key) && handleSettingCommand(*definition, command->payload));
+                     ? handleVentilationModeCommand(command->payload)
+                     : (definition->sourceType == HaEntitySourceType::Setting && handleSettingCommand(*definition, command->payload));
 
         if (!handled)
         {
@@ -179,11 +188,6 @@ namespace
     bool connectMqtt()
     {
         const MqttConfig &config = getMqttConfig();
-        if (config.mqttHost.isEmpty() || config.mqttPort == 0 || WiFi.status() != WL_CONNECTED)
-        {
-            return false;
-        }
-
         const String nodeId = buildNodeId();
         const String availabilityTopic = mqttBuildAvailabilityTopic(nodeId);
         const String clientId = String("renovent-") + nodeId;
@@ -205,19 +209,55 @@ namespace
         {
             if (!subscribeWritableCommandTopics(nodeId))
             {
-                g_mqttClient.disconnect();
+                disconnectMqttIfConnected();
                 return false;
             }
-            g_writerState.publishDiscoveryPending = true;
-            g_writerState.publishCo2StatePending = true;
-            g_writerState.publishSensorMenuStatePending = true;
-            g_writerState.publishSettingsStatePending = true;
-            g_writerState.publishStatusStatePending = true;
-            g_writerState.publishVentilationModeStatePending = g_writerState.hasVentilationModeLabel;
+            g_publishDiscoveryPending = true;
             return true;
         }
 
         return false;
+    }
+
+    bool runtimeSessionAllowed()
+    {
+        const MqttConfig &config = getMqttConfig();
+        return WiFi.status() == WL_CONNECTED && !config.mqttHost.isEmpty() && config.mqttPort != 0;
+    }
+
+    bool ensureMqttConnected()
+    {
+        if (g_mqttClient.connected())
+        {
+            return true;
+        }
+
+        const unsigned long now = millis();
+        if (g_lastConnectAttemptMs != 0 && now - g_lastConnectAttemptMs < kReconnectIntervalMs)
+        {
+            return false;
+        }
+
+        g_lastConnectAttemptMs = now;
+        return connectMqtt();
+    }
+
+    bool publishPendingMqttData(const String &nodeId)
+    {
+        if (g_publishDiscoveryPending)
+        {
+            if (!mqttDiscoveryPublisherPublish(g_mqttClient,
+                                               nodeId,
+                                               mqttBuildAvailabilityTopic(nodeId),
+                                               kAvailabilityPayloadOnline))
+            {
+                return false;
+            }
+
+            g_publishDiscoveryPending = false;
+        }
+
+        return mqttStatePublisherPublishAllStates(g_mqttClient, nodeId);
     }
 
 } // namespace
@@ -231,99 +271,30 @@ void mqttRuntimeSetup()
 
 void mqttRuntimeLoop()
 {
-    if (WiFi.status() != WL_CONNECTED)
+    if (!runtimeSessionAllowed())
     {
-        if (g_mqttClient.connected())
-        {
-            g_mqttClient.disconnect();
-        }
+        disconnectMqttIfConnected();
         return;
     }
 
-    const MqttConfig &config = getMqttConfig();
-    if (config.mqttHost.isEmpty() || config.mqttPort == 0)
+    if (!ensureMqttConnected())
     {
-        if (g_mqttClient.connected())
-        {
-            g_mqttClient.disconnect();
-        }
         return;
-    }
-
-    if (!g_mqttClient.connected())
-    {
-        const unsigned long now = millis();
-        if (g_lastConnectAttemptMs != 0 && now - g_lastConnectAttemptMs < kReconnectIntervalMs)
-        {
-            return;
-        }
-
-        g_lastConnectAttemptMs = now;
-        if (!connectMqtt())
-        {
-            return;
-        }
     }
 
     g_mqttClient.loop();
-
     tryProcessQueuedCommand();
 
-    const String nodeId = buildNodeId();
-
-    if (g_writerState.publishDiscoveryPending)
+    if (publishPendingMqttData(buildNodeId()))
     {
-        if (mqttWriterPublishDiscoveryPayloads(g_mqttClient,
-                                               nodeId,
-                                               mqttBuildAvailabilityTopic(nodeId),
-                                               kAvailabilityPayloadOnline))
-        {
-            g_writerState.publishDiscoveryPending = false;
-        }
-        else
-        {
-            g_mqttClient.disconnect();
-            return;
-        }
-    }
-
-    if (mqttWriterPublishCo2StatesIfNeeded(g_mqttClient, nodeId, g_writerState))
-    {
-        if (mqttWriterPublishSensorMenuStatesIfNeeded(g_mqttClient, nodeId, g_writerState))
-        {
-            if (mqttWriterPublishSettingsStatesIfNeeded(g_mqttClient, nodeId, g_writerState))
-            {
-                if (mqttWriterPublishStatusStatesIfNeeded(g_mqttClient, nodeId, g_writerState))
-                {
-                    if (mqttWriterPublishVirtualStatesIfNeeded(g_mqttClient, nodeId, g_writerState))
-                    {
-                        return;
-                    }
-
-                    g_mqttClient.disconnect();
-                    return;
-                }
-
-                g_mqttClient.disconnect();
-                return;
-            }
-
-            g_mqttClient.disconnect();
-            return;
-        }
-
-        g_mqttClient.disconnect();
         return;
     }
 
-    g_mqttClient.disconnect();
+    disconnectMqttIfConnected();
 }
 
 void mqttRuntimeResetSession()
 {
     resetMqttSessionState();
-    if (g_mqttClient.connected())
-    {
-        g_mqttClient.disconnect();
-    }
+    disconnectMqttIfConnected();
 }

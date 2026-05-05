@@ -134,14 +134,6 @@ void mqttCommandHandlerPop() {
   --g_commandQueueCount;
 }
 
-bool mqttCommandHandlerIsNumericSettingKey(const char *key) {
-  if (key == nullptr) {
-    return false;
-  }
-
-  return key[0] == 'U' || key[0] == 'I';
-}
-
 bool mqttCommandHandlerTryGetOptionValueForLabel(const HaEntityDefinition &definition,
                                                  const char *label,
                                                  int32_t &value) {

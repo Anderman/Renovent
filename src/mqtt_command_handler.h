@@ -14,7 +14,6 @@ void mqttCommandHandlerQueueClear();
 bool mqttCommandHandlerEnqueueLatest(const char *key, const char *payload);
 const MqttQueuedCommand *mqttCommandHandlerPeek();
 void mqttCommandHandlerPop();
-bool mqttCommandHandlerIsNumericSettingKey(const char *key);
 bool mqttCommandHandlerTryGetOptionValueForLabel(const HaEntityDefinition &definition,
                                                  const char *label,
                                                  int32_t &value);
