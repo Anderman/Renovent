@@ -1,5 +1,6 @@
 #include "settings_menu.h"
 
+#include <cstdio>
 #include <cstring>
 
 #include "app_config.h"
@@ -70,7 +71,6 @@ namespace
 
     constexpr uint8_t kReadScriptStepCount = sizeof(kReadScript) / sizeof(kReadScript[0]);
 
-    portMUX_TYPE g_userSettingsMux = portMUX_INITIALIZER_UNLOCKED;
     SettingsState g_state;
     SettingValue g_lastCompletedValues[64] = {};
     uint8_t g_lastCompletedCount = 0;
@@ -130,6 +130,40 @@ namespace
         return static_cast<int8_t>(g_state.count - 1U);
     }
 
+    int8_t findCompletedEntryIndexByKey(const char *key)
+    {
+        for (uint8_t index = 0; index < g_lastCompletedCount; ++index)
+        {
+            if (std::strncmp(g_lastCompletedValues[index].key, key, sizeof(g_lastCompletedValues[index].key)) == 0)
+            {
+                return static_cast<int8_t>(index);
+            }
+        }
+
+        return -1;
+    }
+
+    int8_t ensureCompletedEntryIndex(const char *key)
+    {
+        const int8_t existingIndex = findCompletedEntryIndexByKey(key);
+        if (existingIndex >= 0)
+        {
+            return existingIndex;
+        }
+
+        if (g_lastCompletedCount >= kMaxSettingsMenuCount)
+        {
+            return -1;
+        }
+
+        SettingValue &entry = g_lastCompletedValues[g_lastCompletedCount];
+        entry = SettingValue{};
+        std::strncpy(entry.key, key, sizeof(entry.key) - 1);
+        entry.key[sizeof(entry.key) - 1] = '\0';
+        ++g_lastCompletedCount;
+        return static_cast<int8_t>(g_lastCompletedCount - 1U);
+    }
+
     bool setCurrentEntryKey(const char *displayText)
     {
         char parsedKey[4] = {0};
@@ -168,17 +202,18 @@ namespace
         }
 
         SettingValue &entry = g_state.values[static_cast<uint8_t>(entryIndex)];
+        ParsedSettingValue settingValue{};
+        if (!getSettingValue(displayText, settingValue))
+        {
+            return false;
+        }
+
         entry.available = true;
         std::strncpy(entry.key, g_state.currentEntryKey, sizeof(entry.key) - 1);
         entry.key[sizeof(entry.key) - 1] = '\0';
-        copyDisplayText(entry.rawValue, displayText);
-        int32_t parsedValue = 0;
-        entry.hasValue = parseLastNumber(displayText, parsedValue);
-        entry.value = entry.hasValue ? parsedValue : 0;
-
-        // Some entries, such as U7, can expose symbolic values like "A".
-        // Those entries are still valid scan results and should not stall the
-        // state machine waiting for a numeric parse that will never succeed.
+        copyDisplayText(entry.rawValue, settingValue.displayValue);
+        entry.hasValue = settingValue.hasNumericValue;
+        entry.value = settingValue.hasNumericValue ? settingValue.numericValue : 0;
         return true;
     }
 
@@ -214,6 +249,11 @@ namespace
         advanceToStep(static_cast<uint8_t>(g_state.currentStepIndex + 1U));
     }
 
+    uint8_t currentValueCount()
+    {
+        return g_state.running ? g_state.count : g_lastCompletedCount;
+    }
+
     DisplaySnapshot readCurrentDisplaySnapshot()
     {
         const DisplaySnapshot snapshot = getDisplaySnapshot();
@@ -225,12 +265,10 @@ namespace
     {
         pressKeys(kKeyNone);
 
-        portENTER_CRITICAL(&g_userSettingsMux);
         std::memcpy(g_lastCompletedValues, g_state.values, sizeof(g_lastCompletedValues));
         g_lastCompletedCount = g_state.count;
         copyDisplayText(g_lastCompletedDisplayText, g_state.lastDisplayText);
         g_lastCompletedMs = millis();
-        portEXIT_CRITICAL(&g_userSettingsMux);
 
         g_startupReadPending = false;
         g_state = SettingsState{};
@@ -400,37 +438,83 @@ bool settingsMenuIsBusy()
     return g_state.running;
 }
 
-SettingsMenuStatus getSettingsMenuStatus()
+void updateSettingsMenuValueFromWrite(const char *key, const char *rawValue)
 {
-    SettingsMenuStatus status{};
+    if (key == nullptr || key[0] == '\0' || rawValue == nullptr)
+    {
+        return;
+    }
 
-    portENTER_CRITICAL(&g_userSettingsMux);
-    status.running = g_state.running;
-    status.count = g_state.running ? g_state.count : g_lastCompletedCount;
+    const int8_t entryIndex = ensureCompletedEntryIndex(key);
+    if (entryIndex < 0)
+    {
+        return;
+    }
+
+    SettingValue &entry = g_lastCompletedValues[static_cast<uint8_t>(entryIndex)];
+    ParsedSettingValue settingValue{};
+    if (!getSettingValue(rawValue, settingValue))
+    {
+        return;
+    }
+
+    entry.available = true;
+    std::strncpy(entry.key, key, sizeof(entry.key) - 1);
+    entry.key[sizeof(entry.key) - 1] = '\0';
+    copyDisplayText(entry.rawValue, settingValue.displayValue);
+    entry.hasValue = settingValue.hasNumericValue;
+    entry.value = settingValue.hasNumericValue ? settingValue.numericValue : 0;
+    g_lastCompletedMs = millis();
+}
+
+SettingsMenuHaStatus getSettingsMenuHaStatus()
+{
+    SettingsMenuHaStatus status{};
+
+    status.count = currentValueCount();
     status.lastCompletedMs = g_lastCompletedMs;
-    std::strncpy(status.phase, currentPhaseName(), sizeof(status.phase) - 1);
-    status.phase[sizeof(status.phase) - 1] = '\0';
-    copyDisplayText(status.lastDisplayText,
-                    g_state.running ? g_state.lastDisplayText : g_lastCompletedDisplayText);
-    portEXIT_CRITICAL(&g_userSettingsMux);
+    std::memcpy(status.values, g_lastCompletedValues, sizeof(status.values));
+
+    if (g_state.running)
+    {
+        for (uint8_t index = 0; index < g_state.count; ++index)
+        {
+            if (g_state.values[index].available)
+            {
+                status.values[index] = g_state.values[index];
+            }
+        }
+    }
 
     return status;
 }
 
-bool getSettingsMenuValue(uint8_t index, SettingsMenuValue &value)
+SettingsMenuStatus getSettingsMenuWebStatus()
+{
+    SettingsMenuStatus status{};
+
+    status.running = g_state.running;
+    status.count = currentValueCount();
+    status.lastCompletedMs = g_lastCompletedMs;
+    std::strncpy(status.phase, currentPhaseName(), sizeof(status.phase) - 1);
+    status.phase[sizeof(status.phase) - 1] = '\0';
+    copyDisplayText(status.lastDisplayText, g_state.running ? g_state.lastDisplayText : g_lastCompletedDisplayText);
+
+    return status;
+}
+
+bool getSettingsMenuWebValue(uint8_t index, SettingsMenuValue &value)
 {
     if (index >= kMaxSettingsMenuCount)
     {
         return false;
     }
 
-    portENTER_CRITICAL(&g_userSettingsMux);
     value = g_lastCompletedValues[index];
     if (g_state.running && g_state.values[index].available)
     {
         value = g_state.values[index];
     }
-    portEXIT_CRITICAL(&g_userSettingsMux);
 
     return value.available;
 }

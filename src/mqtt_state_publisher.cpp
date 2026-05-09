@@ -146,13 +146,18 @@ namespace
     bool publishSelectValue(PubSubClient &mqttClient,
                             const String &nodeId,
                             const HaEntityDefinition &definition,
-                            int32_t rawValue,
+                            const char *rawValue,
                             bool forcePublish)
     {
+        if (rawValue == nullptr || rawValue[0] == '\0')
+        {
+            return false;
+        }
+
         for (size_t index = 0; index < definition.optionCount; ++index)
         {
             const HaSelectOptionDefinition &option = definition.options[index];
-            if (std::atoi(option.value) != rawValue)
+            if (std::strcmp(option.value, rawValue) != 0)
             {
                 continue;
             }
@@ -186,16 +191,11 @@ namespace
         return false;
     }
 
-    bool tryGetSettingsValueByKey(const SettingsMenuStatus &status, const char *key, SettingsMenuValue &value)
+    bool tryGetSettingsValueByKey(const SettingsMenuHaStatus &status, const char *key, SettingsMenuValue &value)
     {
         for (uint8_t index = 0; index < status.count; ++index)
         {
-            SettingsMenuValue currentValue{};
-            if (!getSettingsMenuValue(index, currentValue))
-            {
-                continue;
-            }
-
+            const SettingsMenuValue &currentValue = status.values[index];
             if (std::strcmp(currentValue.key, key) == 0)
             {
                 value = currentValue;
@@ -253,10 +253,8 @@ namespace
 
     bool publishSettingsStates(PubSubClient &mqttClient, const String &nodeId, bool forcePublish)
     {
-        const SettingsMenuStatus status = getSettingsMenuStatus();
+        const SettingsMenuHaStatus status = getSettingsMenuHaStatus();
         const SettingWriterStatus writerStatus = getSettingWriterStatus();
-        const bool hasNewerCompletedWrite = !writerStatus.running && writerStatus.lastCompletedMs != 0 &&
-                                            writerStatus.key[0] != '\0' && writerStatus.lastCompletedMs > status.lastCompletedMs;
 
         for (size_t index = 0; index < getHaEntityDefinitionCount(); ++index)
         {
@@ -272,36 +270,38 @@ namespace
                 continue;
             }
 
-            int32_t rawValue = 0;
-            bool hasValue = false;
-
-            if (hasNewerCompletedWrite && std::strcmp(writerStatus.key, definition->key) == 0)
-            {
-                rawValue = writerStatus.value;
-                hasValue = true;
-            }
-            else if (status.lastCompletedMs != 0)
+            if (status.lastCompletedMs != 0)
             {
                 SettingsMenuValue value{};
-                if (tryGetSettingsValueByKey(status, definition->key, value) && value.hasValue)
+                if (!tryGetSettingsValueByKey(status, definition->key, value))
                 {
-                    rawValue = value.value;
-                    hasValue = true;
+                    continue;
                 }
-            }
 
-            if (!hasValue)
-            {
+                bool published = false;
+                if (definition->platform == HaEntityPlatform::Select)
+                {
+                    published = publishSelectValue(mqttClient, nodeId, *definition, value.rawValue, forcePublish);
+                }
+                else if (value.hasValue)
+                {
+                    published = publishNumberValue(mqttClient, nodeId, *definition, value.value, forcePublish);
+                }
+
+                if (!published)
+                {
+                    if (definition->platform == HaEntityPlatform::Select)
+                    {
+                        continue;
+                    }
+
+                    continue;
+                }
+
                 continue;
             }
 
-            const bool published = definition->platform == HaEntityPlatform::Select
-                                       ? publishSelectValue(mqttClient, nodeId, *definition, rawValue, forcePublish)
-                                       : publishNumberValue(mqttClient, nodeId, *definition, rawValue, forcePublish);
-            if (!published)
-            {
-                return false;
-            }
+            continue;
         }
 
         return true;

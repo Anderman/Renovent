@@ -19,5 +19,6 @@ struct SettingWriterStatus {
 void settingWriterSetup();
 void settingWriterLoop();
 SettingWriteStatus writeSetting(const char *key, int32_t value);
+SettingWriteStatus writeSetting(const char *key, const char *displayValue);
 bool settingWriterIsBusy();
 SettingWriterStatus getSettingWriterStatus();

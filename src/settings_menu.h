@@ -18,11 +18,19 @@ struct SettingsMenuStatus {
   char lastDisplayText[9];
 };
 
+struct SettingsMenuHaStatus {
+  uint8_t count;
+  uint32_t lastCompletedMs;
+  SettingValue values[64];
+};
+
 using SettingsMenuValue = SettingValue;
 
 void settingsMenuSetup();
 void settingsMenuLoop();
 bool requestSettingsMenuRead();
 bool settingsMenuIsBusy();
-SettingsMenuStatus getSettingsMenuStatus();
-bool getSettingsMenuValue(uint8_t index, SettingsMenuValue &value);
+void updateSettingsMenuValueFromWrite(const char *key, const char *rawValue);
+SettingsMenuHaStatus getSettingsMenuHaStatus();
+SettingsMenuStatus getSettingsMenuWebStatus();
+bool getSettingsMenuWebValue(uint8_t index, SettingsMenuValue &value);

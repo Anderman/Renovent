@@ -1,7 +1,6 @@
 #include "setting_writer_internal.h"
 #include "setting_writer_steps.h"
 
-#include <limits>
 #include <cstring>
 
 #include "app_config.h"
@@ -15,8 +14,87 @@ namespace setting_writer_internal
 
         constexpr uint32_t kNavigationKeyDownMs = 120;
         constexpr uint32_t kNavigationSettleMs = 120;
-        constexpr uint32_t kAdjustHoldTimeoutMs = 11000;
-        constexpr int32_t kInvalidDisplayValue = (std::numeric_limits<int32_t>::min)();
+        constexpr uint32_t kAdjustHoldTimeoutBaseMs = 5000;
+        constexpr uint32_t kAdjustHoldTimeoutPerStepMs = 220;
+        constexpr uint32_t kAdjustHoldTimeoutMaxMs = 60000;
+
+        uint32_t computeAdjustHoldTimeoutMs(int32_t currentValue, int32_t targetValue)
+        {
+            uint32_t delta = 0;
+            if (targetValue >= currentValue)
+            {
+                delta = static_cast<uint32_t>(targetValue - currentValue);
+            }
+            else
+            {
+                delta = static_cast<uint32_t>(currentValue - targetValue);
+            }
+
+            const uint32_t timeoutMs = kAdjustHoldTimeoutBaseMs + delta * kAdjustHoldTimeoutPerStepMs;
+            return timeoutMs > kAdjustHoldTimeoutMaxMs ? kAdjustHoldTimeoutMaxMs : timeoutMs;
+        }
+
+        bool readCurrentSettingValue(uint32_t now, ParsedSettingValue &settingValue)
+        {
+            const DisplaySnapshot snapshot = getDisplaySnapshot();
+            if (!getSettingValue(snapshot.text, settingValue))
+            {
+                updateInvalidDisplayTimer(now);
+                return false;
+            }
+
+            g_state.invalidDisplayStartedMs = 0;
+            return true;
+        }
+
+        bool readCurrentNumericSettingValue(uint32_t now, int32_t &currentValue)
+        {
+            ParsedSettingValue currentSettingValue{};
+            if (!readCurrentSettingValue(now, currentSettingValue) || !currentSettingValue.hasNumericValue)
+            {
+                return false;
+            }
+
+            currentValue = currentSettingValue.numericValue;
+            g_state.currentValue = currentValue;
+            return true;
+        }
+
+        bool readTargetDisplayMatch(uint32_t now, bool &matchesTarget)
+        {
+            ParsedSettingValue currentSettingValue{};
+            if (!readCurrentSettingValue(now, currentSettingValue))
+            {
+                return false;
+            }
+
+            matchesTarget = std::strncmp(currentSettingValue.displayValue,
+                                         g_state.request.targetDisplayValue,
+                                         sizeof(g_state.request.targetDisplayValue)) == 0;
+            return true;
+        }
+
+        void restartAdjustStep()
+        {
+            g_state.stepStarted = false;
+            g_state.keysReleased = false;
+        }
+
+        void finishAdjustReleasePhase(uint32_t now, uint32_t settleMs)
+        {
+            if (!isWaitCompleted(now, settleMs))
+            {
+                return;
+            }
+
+            if (g_state.adjustTimedOut)
+            {
+                advanceToNextStep();
+                return;
+            }
+
+            restartAdjustStep();
+        }
 
         constexpr SettingWriterStep kWriteScript[] = {
             {"enter-settings-menu", SettingWriterStepKind::FixedKey, kKeyFunction, app_config::kMenuEnterHoldMs, 100, "U0"},
@@ -30,22 +108,6 @@ namespace setting_writer_internal
         };
 
         constexpr uint8_t kWriteScriptStepCount = sizeof(kWriteScript) / sizeof(kWriteScript[0]);
-
-        int32_t readCurrentValue(uint32_t now)
-        {
-            const DisplaySnapshot snapshot = getDisplaySnapshot();
-
-            int32_t currentValue = 0;
-            if (!parseLastNumber(snapshot.text, currentValue))
-            {
-                updateInvalidDisplayTimer(now);
-                return kInvalidDisplayValue;
-            }
-
-            g_state.invalidDisplayStartedMs = 0;
-            g_state.currentValue = currentValue;
-            return currentValue;
-        }
 
         void runFixedStep(uint32_t now, const SettingWriterStep &step)
         {
@@ -141,11 +203,59 @@ namespace setting_writer_internal
 
         void runAdjustValueStep(uint32_t now, const SettingWriterStep &step)
         {
+            if (!g_state.request.targetHasNumericValue)
+            {
+                if (!g_state.stepStarted)
+                {
+                    bool matchesTarget = false;
+                    if (!readTargetDisplayMatch(now, matchesTarget))
+                    {
+                        return;
+                    }
+
+                    if (matchesTarget)
+                    {
+                        advanceToNextStep();
+                        return;
+                    }
+
+                    g_state.adjustTimedOut = false;
+                    g_state.adjustHoldTimeoutMs = kAdjustHoldTimeoutMaxMs;
+                    startStep(now, kKeyPlus);
+                    return;
+                }
+
+                if (!g_state.keysReleased)
+                {
+                    bool matchesTarget = false;
+                    if (!readTargetDisplayMatch(now, matchesTarget))
+                    {
+                        return;
+                    }
+
+                    if (isWaitCompleted(now, g_state.adjustHoldTimeoutMs))
+                    {
+                        releaseKeys(now);
+                        g_state.adjustTimedOut = true;
+                        return;
+                    }
+
+                    if (matchesTarget)
+                    {
+                        releaseKeys(now);
+                    }
+                    return;
+                }
+
+                finishAdjustReleasePhase(now, step.settleMs);
+                return;
+            }
+
             const int32_t targetValue = g_state.request.targetValue;
             if (!g_state.stepStarted)
             {
-                const int32_t currentValue = readCurrentValue(now);
-                if (currentValue == kInvalidDisplayValue)
+                int32_t currentValue = 0;
+                if (!readCurrentNumericSettingValue(now, currentValue))
                 {
                     return;
                 }
@@ -158,6 +268,7 @@ namespace setting_writer_internal
 
                 g_state.increasing = currentValue < targetValue;
                 g_state.adjustTimedOut = false;
+                g_state.adjustHoldTimeoutMs = computeAdjustHoldTimeoutMs(currentValue, targetValue);
 
                 startStep(now, g_state.increasing ? kKeyPlus : kKeyMinus);
                 return;
@@ -165,9 +276,13 @@ namespace setting_writer_internal
 
             if (!g_state.keysReleased)
             {
-                const int32_t currentValue = readCurrentValue(now);
+                int32_t currentValue = 0;
+                if (!readCurrentNumericSettingValue(now, currentValue))
+                {
+                    return;
+                }
 
-                if (isWaitCompleted(now, kAdjustHoldTimeoutMs))
+                if (isWaitCompleted(now, g_state.adjustHoldTimeoutMs))
                 {
                     releaseKeys(now);
                     g_state.adjustTimedOut = true;
@@ -184,19 +299,7 @@ namespace setting_writer_internal
                 return;
             }
 
-            if (!isWaitCompleted(now, step.settleMs))
-            {
-                return;
-            }
-
-            if (g_state.adjustTimedOut)
-            {
-                advanceToNextStep();
-                return;
-            }
-
-            g_state.stepStarted = false;
-            g_state.keysReleased = false;
+            finishAdjustReleasePhase(now, step.settleMs);
         }
 
     } // namespace

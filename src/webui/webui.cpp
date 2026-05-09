@@ -89,7 +89,7 @@ void handleStatus() {
   const AutoUpdateStatus &autoUpdateStatus = getAutoUpdateStatus();
   const ResetInfoStatus resetInfoStatus = getResetInfoStatus();
   const SettingWriterStatus settingWriterStatus = getSettingWriterStatus();
-  const SettingsMenuStatus settingsMenuStatus = getSettingsMenuStatus();
+  const SettingsMenuStatus settingsMenuStatus = getSettingsMenuWebStatus();
 
   JsonDocument doc;
   doc["uptimeMs"] = millis();
@@ -142,7 +142,7 @@ void handleStatus() {
   JsonArray settingsMenuEntries = doc["settingsMenuEntries"].to<JsonArray>();
   for (uint8_t index = 0; index < settingsMenuStatus.count; ++index) {
     SettingsMenuValue settingsMenuValue{};
-    if (!getSettingsMenuValue(index, settingsMenuValue)) {
+    if (!getSettingsMenuWebValue(index, settingsMenuValue)) {
       continue;
     }
     JsonObject entry = settingsMenuEntries.add<JsonObject>();

@@ -130,15 +130,24 @@ namespace
 
     SettingWriteStatus handleSettingCommand(const HaEntityDefinition &definition, const char *payload)
     {
-        int32_t value = 0;
         if (definition.platform == HaEntityPlatform::Select)
         {
-            if (!mqttCommandHandlerTryGetOptionValueForLabel(definition, payload, value))
+            for (size_t index = 0; index < definition.optionCount; ++index)
             {
-                value = std::atoi(payload);
+                const HaSelectOptionDefinition &option = definition.options[index];
+                if (std::strcmp(option.label, payload) != 0 && std::strcmp(option.value, payload) != 0)
+                {
+                    continue;
+                }
+
+                return writeSetting(definition.key, option.value);
             }
+
+            return writeSetting(definition.key, payload);
         }
-        else if (!tryParseNumber(definition, payload, value))
+
+        int32_t value = 0;
+        if (!tryParseNumber(definition, payload, value))
         {
             return SettingWriteStatus::InvalidKey;
         }

@@ -2,6 +2,106 @@
 
 #include <cstring>
 
+namespace
+{
+    void compactSettingDisplayText(char (&destination)[9], const char *source)
+    {
+        if (source == nullptr)
+        {
+            destination[0] = '\0';
+            return;
+        }
+
+        uint8_t writeIndex = 0;
+        for (uint8_t readIndex = 0; source[readIndex] != '\0' && writeIndex < sizeof(destination) - 1U; ++readIndex)
+        {
+            const char current = source[readIndex];
+            if (current == ' ')
+            {
+                continue;
+            }
+
+            destination[writeIndex++] = current == ',' ? '.' : current;
+        }
+
+        destination[writeIndex] = '\0';
+    }
+
+    bool normalizeNumericDisplayValue(char (&destination)[9], const char *source)
+    {
+        if (source == nullptr || source[0] == '\0')
+        {
+            destination[0] = '\0';
+            return false;
+        }
+
+        const size_t sourceLength = std::strlen(source);
+        bool negative = false;
+        bool sawDigit = false;
+        bool sawDecimalSeparator = false;
+        uint8_t writeIndex = 0;
+
+        if (source[sourceLength - 1U] == '.')
+        {
+            negative = true;
+        }
+
+        for (size_t index = 0; index < sourceLength && writeIndex < sizeof(destination) - 1U; ++index)
+        {
+            const char current = source[index];
+
+            if (current == '-')
+            {
+                negative = true;
+                continue;
+            }
+
+            if (current >= '0' && current <= '9')
+            {
+                destination[writeIndex++] = current;
+                sawDigit = true;
+                continue;
+            }
+
+            if (current == '.' && index != sourceLength - 1U && !sawDecimalSeparator)
+            {
+                if (writeIndex == 0)
+                {
+                    destination[writeIndex++] = '0';
+                }
+
+                destination[writeIndex++] = '.';
+                sawDecimalSeparator = true;
+            }
+        }
+
+        if (!sawDigit)
+        {
+            destination[0] = '\0';
+            return false;
+        }
+
+        destination[writeIndex] = '\0';
+
+        if (!negative)
+        {
+            return true;
+        }
+
+        if (writeIndex >= sizeof(destination) - 1U)
+        {
+            return false;
+        }
+
+        for (int8_t index = static_cast<int8_t>(writeIndex); index >= 0; --index)
+        {
+            destination[index + 1] = destination[index];
+        }
+        destination[0] = '-';
+        return true;
+    }
+}
+
 void copyDisplayText(char (&destination)[9], const char *source)
 {
     std::strncpy(destination, source, sizeof(destination) - 1);
@@ -155,5 +255,37 @@ bool parseLastNumber(const char *rawValue, int32_t &value)
     }
 
     value = negative ? -parsedValue : parsedValue;
+    return true;
+}
+
+bool getSettingValue(const char *displayText, ParsedSettingValue &value)
+{
+    value = ParsedSettingValue{};
+
+    char compactDisplayValue[9] = {0};
+    compactSettingDisplayText(compactDisplayValue, displayText);
+
+    if (compactDisplayValue[0] == '\0')
+    {
+        return false;
+    }
+
+    int32_t numericValue = 0;
+    if (parseLastNumber(compactDisplayValue, numericValue))
+    {
+        if (!normalizeNumericDisplayValue(value.displayValue, compactDisplayValue))
+        {
+            return false;
+        }
+
+        value.isValid = true;
+        value.hasNumericValue = true;
+        value.numericValue = numericValue;
+        return true;
+    }
+
+    copyDisplayText(value.displayValue, compactDisplayValue);
+    value.isValid = true;
+    value.hasNumericValue = false;
     return true;
 }

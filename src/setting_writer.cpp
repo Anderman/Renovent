@@ -54,6 +54,41 @@ namespace setting_writer_internal
     return true;
   }
 
+  SettingWriteStatus scheduleWriteRequest(const char *haKey, const char *displayValue, bool hasNumericValue, int32_t numericValue)
+  {
+    if (g_state.running || sensorsMenuIsBusy() || settingsMenuIsBusy())
+    {
+      return SettingWriteStatus::Busy;
+    }
+
+    const DisplaySnapshot snapshot = getDisplaySnapshot();
+    if (!isValidSettingsStartDisplay(snapshot.text))
+    {
+      return SettingWriteStatus::InvalidStartDisplay;
+    }
+
+    SettingWriteRequest request{};
+    if (!tryParseKey(haKey, request.key))
+    {
+      return SettingWriteStatus::InvalidKey;
+    }
+
+    ParsedSettingValue settingValue{};
+    if (!getSettingValue(displayValue, settingValue))
+    {
+      return SettingWriteStatus::InvalidKey;
+    }
+
+    request.targetHasNumericValue = hasNumericValue && settingValue.hasNumericValue;
+    request.targetValue = request.targetHasNumericValue ? numericValue : 0;
+    copyDisplayText(request.targetDisplayValue, settingValue.displayValue);
+
+    g_state = SettingWriterState{};
+    g_state.running = true;
+    g_state.request = request;
+    return SettingWriteStatus::Scheduled;
+  }
+
   void startStep(uint32_t now, uint32_t keyMask)
   {
     g_state.phaseStartedMs = now;
@@ -89,6 +124,7 @@ namespace setting_writer_internal
     std::memcpy(g_lastCompletedKey, g_state.request.key, sizeof(g_lastCompletedKey));
     g_lastCompletedMs = millis();
     g_lastCompletedValue = g_state.currentValue;
+    updateSettingsMenuValueFromWrite(g_state.request.key, g_state.request.targetDisplayValue);
 
     g_state = SettingWriterState{};
   }
@@ -136,28 +172,29 @@ SettingWriteStatus writeSetting(const char *haKey, int32_t value)
 {
   using namespace setting_writer_internal;
 
-  if (g_state.running || sensorsMenuIsBusy() || settingsMenuIsBusy())
-  {
-    return SettingWriteStatus::Busy;
-  }
+  char displayValue[9] = {0};
+  std::snprintf(displayValue, sizeof(displayValue), "%ld", static_cast<long>(value));
+  return scheduleWriteRequest(haKey, displayValue, true, value);
+}
 
-  const DisplaySnapshot snapshot = getDisplaySnapshot();
-  if (!isValidSettingsStartDisplay(snapshot.text))
-  {
-    return SettingWriteStatus::InvalidStartDisplay;
-  }
+SettingWriteStatus writeSetting(const char *haKey, const char *displayValue)
+{
+  using namespace setting_writer_internal;
 
-  SettingWriteRequest request{};
-  if (!tryParseKey(haKey, request.key))
+  if (displayValue == nullptr || displayValue[0] == '\0')
   {
     return SettingWriteStatus::InvalidKey;
   }
 
-  request.targetValue = value;
-  g_state = SettingWriterState{};
-  g_state.running = true;
-  g_state.request = request;
-  return SettingWriteStatus::Scheduled;
+  ParsedSettingValue settingValue{};
+  if (!getSettingValue(displayValue, settingValue))
+  {
+    return SettingWriteStatus::InvalidKey;
+  }
+
+  const int32_t numericValue = settingValue.numericValue;
+  const bool hasNumericValue = settingValue.hasNumericValue;
+  return scheduleWriteRequest(haKey, displayValue, hasNumericValue, numericValue);
 }
 
 bool settingWriterIsBusy()
