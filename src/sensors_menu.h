@@ -5,7 +5,6 @@
 struct SensorsMenuCapturedEntry {
   bool available;
   char rawValue[9];
-  char detail[32];
   bool hasValue;
   int32_t value;
   bool hasAuxValue;
@@ -37,26 +36,30 @@ struct SensorsMenuValueDefinition {
   const char *description;
   const char *unit;
   const char *remark;
+  uint8_t displayPrecision;
 };
 
-struct SensorsMenuStatus {
+struct SensorsMenuProgress {
   bool running;
-  bool done;
   uint8_t currentStep;
   uint32_t lastCompletedMs;
   char phase[24];
   char lastDisplayText[9];
-  SensorsMenuCapturedEntry entries[13];
-  SensorsMenuValueItem values[14];
+};
+
+struct SensorsMenuSnapshot {
+  uint32_t lastCompletedMs;
+  SensorsMenuCapturedEntry entries[16];
+  SensorsMenuValueItem values[17];
   SensorsMenuUnknownEntry unknownEntries[8];
 };
 
 void sensorsMenuSetup();
 void sensorsMenuLoop();
 void startSensorsMenuScan();
-void stopSensorsMenuScan();
+bool canStartSensorsMenu();
 bool sensorsMenuIsBusy();
-bool sensorsMenuAutoScanEnabled();
-SensorsMenuStatus getSensorsMenuStatus();
+SensorsMenuProgress getSensorsMenuProgress();
+SensorsMenuSnapshot getSensorsMenuSnapshot();
 SensorsMenuDefinition getSensorsMenuDefinition(uint8_t step);
 SensorsMenuValueDefinition getSensorsMenuValueDefinition(uint8_t index);

@@ -163,9 +163,9 @@ namespace
         return false;
     }
 
-    bool tryGetSensorMenuValueByKey(const SensorsMenuStatus &status, const char *key, int32_t &value)
+    bool tryGetSensorMenuValueByKey(const SensorsMenuSnapshot &snapshot, const char *key, int32_t &value)
     {
-        for (uint8_t index = 1; index <= 14; ++index)
+        for (uint8_t index = 1; index <= (sizeof(snapshot.values) / sizeof(snapshot.values[0])); ++index)
         {
             const SensorsMenuValueDefinition definition = getSensorsMenuValueDefinition(index);
             if (std::strcmp(definition.key, key) != 0)
@@ -173,7 +173,7 @@ namespace
                 continue;
             }
 
-            const SensorsMenuValueItem &item = status.values[index - 1U];
+            const SensorsMenuValueItem &item = snapshot.values[index - 1U];
             if (!item.available || !item.hasValue)
             {
                 return false;
@@ -222,8 +222,8 @@ namespace
 
     bool publishSensorMenuStates(PubSubClient &mqttClient, const String &nodeId, bool forcePublish)
     {
-        const SensorsMenuStatus status = getSensorsMenuStatus();
-        if (status.lastCompletedMs == 0)
+        const SensorsMenuSnapshot snapshot = getSensorsMenuSnapshot();
+        if (snapshot.lastCompletedMs == 0)
         {
             return true;
         }
@@ -237,7 +237,7 @@ namespace
             }
 
             int32_t value = 0;
-            if (!tryGetSensorMenuValueByKey(status, definition->key, value))
+            if (!tryGetSensorMenuValueByKey(snapshot, definition->key, value))
             {
                 continue;
             }
@@ -255,7 +255,8 @@ namespace
     {
         const SettingsMenuStatus status = getSettingsMenuStatus();
         const SettingWriterStatus writerStatus = getSettingWriterStatus();
-        const bool hasRecentWrite = !writerStatus.running && writerStatus.lastCompletedMs != 0 && writerStatus.key[0] != '\0';
+        const bool hasNewerCompletedWrite = !writerStatus.running && writerStatus.lastCompletedMs != 0 &&
+                                            writerStatus.key[0] != '\0' && writerStatus.lastCompletedMs > status.lastCompletedMs;
 
         for (size_t index = 0; index < getHaEntityDefinitionCount(); ++index)
         {
@@ -265,10 +266,16 @@ namespace
                 continue;
             }
 
+            if (writerStatus.running && std::strcmp(writerStatus.key, definition->key) == 0)
+            {
+                // Suppress stale state echoes while the writer is still walking the menu.
+                continue;
+            }
+
             int32_t rawValue = 0;
             bool hasValue = false;
 
-            if (hasRecentWrite && std::strcmp(writerStatus.key, definition->key) == 0)
+            if (hasNewerCompletedWrite && std::strcmp(writerStatus.key, definition->key) == 0)
             {
                 rawValue = writerStatus.value;
                 hasValue = true;

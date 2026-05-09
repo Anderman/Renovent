@@ -85,7 +85,7 @@ void handleStatus() {
   const DisplaySnapshot snapshot = getDisplaySnapshot();
   const String activeKeys = activeKeysToString(snapshot.activeKeys);
   const Co2SensorStatus co2Status = getCo2SensorStatus();
-  const SensorsMenuStatus sensorsMenuStatus = getSensorsMenuStatus();
+  const SensorsMenuProgress sensorsMenuProgress = getSensorsMenuProgress();
   const AutoUpdateStatus &autoUpdateStatus = getAutoUpdateStatus();
   const ResetInfoStatus resetInfoStatus = getResetInfoStatus();
   const SettingWriterStatus settingWriterStatus = getSettingWriterStatus();
@@ -118,13 +118,11 @@ void handleStatus() {
   doc["co2AbsoluteHumidityGm3"] = co2Status.dataValid ? co2Status.absoluteHumidityGm3 : 0.0f;
   doc["co2LastSampleMs"] = co2Status.lastSampleMs;
   doc["co2Error"] = co2Status.error;
-  doc["sensorsMenuRunning"] = sensorsMenuStatus.running;
-  doc["sensorsMenuDone"] = sensorsMenuStatus.done;
-  doc["sensorsMenuPhase"] = sensorsMenuStatus.phase;
-  doc["sensorsMenuStep"] = sensorsMenuStatus.currentStep;
-  doc["sensorsMenuDisplay"] = sensorsMenuStatus.lastDisplayText;
-  doc["sensorsMenuLastCompletedMs"] = sensorsMenuStatus.lastCompletedMs;
-  doc["sensorsMenuAutoScanEnabled"] = sensorsMenuAutoScanEnabled();
+  doc["sensorsMenuRunning"] = sensorsMenuProgress.running;
+  doc["sensorsMenuPhase"] = sensorsMenuProgress.phase;
+  doc["sensorsMenuStep"] = sensorsMenuProgress.currentStep;
+  doc["sensorsMenuDisplay"] = sensorsMenuProgress.lastDisplayText;
+  doc["sensorsMenuLastCompletedMs"] = sensorsMenuProgress.lastCompletedMs;
   doc["firmwareBuildId"] = autoUpdateStatus.currentFirmwareBuildId;
   doc["spiffsBuildId"] = autoUpdateStatus.currentSpiffsBuildId;
   doc["autoUpdateState"] = autoUpdateStatus.state;
@@ -186,36 +184,34 @@ void handleKeyPressLogGet() {
 }
 
 void handleSensorsMenuGet() {
-  const SensorsMenuStatus sensorsMenuStatus = getSensorsMenuStatus();
+  const SensorsMenuProgress sensorsMenuProgress = getSensorsMenuProgress();
+  const SensorsMenuSnapshot sensorsMenuSnapshot = getSensorsMenuSnapshot();
 
   JsonDocument doc;
-  doc["running"] = sensorsMenuStatus.running;
-  doc["done"] = sensorsMenuStatus.done;
-  doc["autoScanEnabled"] = sensorsMenuAutoScanEnabled();
-  doc["phase"] = sensorsMenuStatus.phase;
-  doc["currentStep"] = sensorsMenuStatus.currentStep;
-  doc["lastCompletedMs"] = sensorsMenuStatus.lastCompletedMs;
-  doc["lastDisplayText"] = sensorsMenuStatus.lastDisplayText;
+  doc["running"] = sensorsMenuProgress.running;
+  doc["phase"] = sensorsMenuProgress.phase;
+  doc["currentStep"] = sensorsMenuProgress.currentStep;
+  doc["lastCompletedMs"] = sensorsMenuSnapshot.lastCompletedMs;
+  doc["lastDisplayText"] = sensorsMenuProgress.lastDisplayText;
 
   JsonArray entries = doc["entries"].to<JsonArray>();
-  for (uint8_t index = 0; index < 13; ++index) {
+  for (uint8_t index = 0; index < (sizeof(sensorsMenuSnapshot.entries) / sizeof(sensorsMenuSnapshot.entries[0])); ++index) {
     const SensorsMenuDefinition definition = getSensorsMenuDefinition(index + 1U);
     JsonObject entry = entries.add<JsonObject>();
     entry["step"] = index + 1;
     entry["example"] = definition.example;
     entry["description"] = definition.description;
     entry["remark"] = definition.remark;
-    entry["available"] = sensorsMenuStatus.entries[index].available;
-    entry["rawValue"] = sensorsMenuStatus.entries[index].available ? sensorsMenuStatus.entries[index].rawValue : "";
-    entry["detail"] = sensorsMenuStatus.entries[index].available ? sensorsMenuStatus.entries[index].detail : "";
-    entry["hasValue"] = sensorsMenuStatus.entries[index].hasValue;
-    entry["value"] = sensorsMenuStatus.entries[index].value;
-    entry["hasAuxValue"] = sensorsMenuStatus.entries[index].hasAuxValue;
-    entry["auxValue"] = sensorsMenuStatus.entries[index].auxValue;
+    entry["available"] = sensorsMenuSnapshot.entries[index].available;
+    entry["rawValue"] = sensorsMenuSnapshot.entries[index].available ? sensorsMenuSnapshot.entries[index].rawValue : "";
+    entry["hasValue"] = sensorsMenuSnapshot.entries[index].hasValue;
+    entry["value"] = sensorsMenuSnapshot.entries[index].value;
+    entry["hasAuxValue"] = sensorsMenuSnapshot.entries[index].hasAuxValue;
+    entry["auxValue"] = sensorsMenuSnapshot.entries[index].auxValue;
   }
 
   JsonArray values = doc["values"].to<JsonArray>();
-  for (uint8_t index = 0; index < 14; ++index) {
+  for (uint8_t index = 0; index < (sizeof(sensorsMenuSnapshot.values) / sizeof(sensorsMenuSnapshot.values[0])); ++index) {
     const SensorsMenuValueDefinition definition = getSensorsMenuValueDefinition(index + 1U);
     JsonObject value = values.add<JsonObject>();
     value["index"] = index + 1;
@@ -223,14 +219,15 @@ void handleSensorsMenuGet() {
     value["description"] = definition.description;
     value["unit"] = definition.unit;
     value["remark"] = definition.remark;
-    value["available"] = sensorsMenuStatus.values[index].available;
-    value["hasValue"] = sensorsMenuStatus.values[index].hasValue;
-    value["value"] = sensorsMenuStatus.values[index].value;
+    value["displayPrecision"] = definition.displayPrecision;
+    value["available"] = sensorsMenuSnapshot.values[index].available;
+    value["hasValue"] = sensorsMenuSnapshot.values[index].hasValue;
+    value["value"] = sensorsMenuSnapshot.values[index].value;
   }
 
   JsonArray unknownEntries = doc["unknownEntries"].to<JsonArray>();
   for (uint8_t index = 0; index < 8; ++index) {
-    const SensorsMenuUnknownEntry &unknownEntry = sensorsMenuStatus.unknownEntries[index];
+    const SensorsMenuUnknownEntry &unknownEntry = sensorsMenuSnapshot.unknownEntries[index];
     if (!unknownEntry.available) {
       continue;
     }
@@ -330,7 +327,7 @@ void handleSetValue() {
 }
 
 void handleSensorsMenuStart() {
-  const bool allowed = !sensorsMenuIsBusy() && !settingsMenuIsBusy() && !settingWriterIsBusy();
+  const bool allowed = canStartSensorsMenu();
   if (allowed) {
     startSensorsMenuScan();
   }

@@ -21,6 +21,16 @@ function normalizeDisplayNumber(rawValue) {
 	return negative ? `-${normalized}` : normalized;
 }
 
+function formatScaledValue(value, displayPrecision) {
+	const numericValue = Number(value);
+	const precision = Number(displayPrecision ?? 0);
+	if (!Number.isFinite(numericValue) || !Number.isInteger(precision) || precision <= 0) {
+		return String(value);
+	}
+
+	return (numericValue / (10 ** precision)).toFixed(precision);
+}
+
 export function mapSettingsEntries(entries, definitions) {
 	const lookup = createDefinitionLookup(definitions);
 	return entries
@@ -47,10 +57,13 @@ export function mapSensorEntries(payload) {
 			description: entry.description ?? "",
 			unit: entry.unit ?? "",
 			remark: entry.remark ?? "",
+			displayPrecision: Number(entry.displayPrecision ?? 0),
 			available: Boolean(entry.available),
 			hasValue: Boolean(entry.hasValue),
 			value: entry.value,
-			valueDisplay: Boolean(entry.available) && Boolean(entry.hasValue) ? String(entry.value) : "--"
+			valueDisplay: Boolean(entry.available) && Boolean(entry.hasValue)
+				? formatScaledValue(entry.value, entry.displayPrecision)
+				: "--"
 		}));
 		const unknownEntries = Array.isArray(payload?.unknownEntries) ? payload.unknownEntries : [];
 		const mappedUnknownEntries = unknownEntries.map((entry) => ({
