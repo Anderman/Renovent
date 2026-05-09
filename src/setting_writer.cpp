@@ -157,7 +157,6 @@ SettingWriteStatus writeSetting(const char *haKey, int32_t value)
   g_state = SettingWriterState{};
   g_state.running = true;
   g_state.request = request;
-  copyDisplayText(g_state.lastDisplayText, snapshot.text);
   return SettingWriteStatus::Scheduled;
 }
 

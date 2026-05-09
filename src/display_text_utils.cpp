@@ -47,41 +47,22 @@ bool startsWithDisplay(const char *actual, const char *expectedPrefix)
     return true;
 }
 
-bool parseDisplayKey(const char *displayText, char (&key)[4])
+bool parseSettingKey(const char *displayText, char (&key)[4])
 {
     if (displayText == nullptr)
     {
         return false;
     }
 
-    uint8_t readIndex = 0;
-    while (displayText[readIndex] == ' ')
-    {
-        ++readIndex;
-    }
-
     uint8_t writeIndex = 0;
-    while (displayText[readIndex] != '\0' && writeIndex < sizeof(key) - 1U)
+    for (uint8_t readIndex = 0; displayText[readIndex] != '\0' && writeIndex < sizeof(key) - 1U; ++readIndex)
     {
-        const char current = displayText[readIndex++];
-        if (current == ' ')
-        {
-            continue;
-        }
-
-        if ((current >= 'a' && current <= 'z'))
-        {
-            key[writeIndex++] = static_cast<char>(current - 'a' + 'A');
-            continue;
-        }
+        const char current = displayText[readIndex];
 
         if ((current >= 'A' && current <= 'Z') || (current >= '0' && current <= '9'))
         {
             key[writeIndex++] = current;
-            continue;
         }
-
-        break;
     }
 
     key[writeIndex] = '\0';

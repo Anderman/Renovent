@@ -13,8 +13,8 @@ namespace setting_writer_internal
     namespace
     {
 
-        constexpr uint32_t kNavigationKeyDownMs = 160;
-        constexpr uint32_t kNavigationSettleMs = 500;
+        constexpr uint32_t kNavigationKeyDownMs = 120;
+        constexpr uint32_t kNavigationSettleMs = 120;
         constexpr uint32_t kAdjustHoldTimeoutMs = 11000;
         constexpr int32_t kInvalidDisplayValue = (std::numeric_limits<int32_t>::min)();
 
@@ -29,16 +29,11 @@ namespace setting_writer_internal
             {"exit-menu", SettingWriterStepKind::FixedKey, kKeyFunction, app_config::kMenuExitHoldMs, 100, nullptr},
         };
 
-        const SettingWriterStep *currentScript(uint8_t &stepCount)
-        {
-            stepCount = sizeof(kWriteScript) / sizeof(kWriteScript[0]);
-            return kWriteScript;
-        }
+        constexpr uint8_t kWriteScriptStepCount = sizeof(kWriteScript) / sizeof(kWriteScript[0]);
 
         int32_t readCurrentValue(uint32_t now)
         {
             const DisplaySnapshot snapshot = getDisplaySnapshot();
-            copyDisplayText(g_state.lastDisplayText, snapshot.text);
 
             int32_t currentValue = 0;
             if (!parseLastNumber(snapshot.text, currentValue))
@@ -75,18 +70,10 @@ namespace setting_writer_internal
             }
 
             const DisplaySnapshot snapshot = getDisplaySnapshot();
-            copyDisplayText(g_state.lastDisplayText, snapshot.text);
             if (!startsWithDisplay(snapshot.text, step.expectedDisplayPrefix))
             {
-                if (step.expectedDisplayPrefix != nullptr && updateInvalidDisplayTimer(now))
-                {
-                    return;
-                }
-
-                if (step.expectedDisplayPrefix != nullptr)
-                {
-                    return;
-                }
+                updateInvalidDisplayTimer(now);
+                return;
             }
 
             g_state.invalidDisplayStartedMs = 0;
@@ -98,12 +85,10 @@ namespace setting_writer_internal
             if (!g_state.stepStarted)
             {
                 const DisplaySnapshot snapshot = getDisplaySnapshot();
-                copyDisplayText(g_state.previousDisplayText, snapshot.text);
-                copyDisplayText(g_state.lastDisplayText, snapshot.text);
+                copyDisplayText(g_state.displayBeforeKeyPress, snapshot.text);
 
                 char displayedKey[4] = {0};
-                if (parseDisplayKey(snapshot.text, displayedKey) &&
-                    std::strncmp(displayedKey, g_state.request.key, sizeof(displayedKey)) == 0)
+                if (parseSettingKey(snapshot.text, displayedKey) && std::strncmp(displayedKey, g_state.request.key, sizeof(displayedKey)) == 0)
                 {
                     g_state.invalidDisplayStartedMs = 0;
                     advanceToNextStep();
@@ -129,15 +114,14 @@ namespace setting_writer_internal
             }
 
             const DisplaySnapshot snapshot = getDisplaySnapshot();
-            copyDisplayText(g_state.lastDisplayText, snapshot.text);
-            if (std::strncmp(snapshot.text, g_state.previousDisplayText, sizeof(g_state.previousDisplayText)) == 0)
+            if (std::strncmp(snapshot.text, g_state.displayBeforeKeyPress, sizeof(g_state.displayBeforeKeyPress)) == 0)
             {
                 updateInvalidDisplayTimer(now);
                 return;
             }
 
             char displayedKey[4] = {0};
-            if (!parseDisplayKey(snapshot.text, displayedKey))
+            if (!parseSettingKey(snapshot.text, displayedKey))
             {
                 updateInvalidDisplayTimer(now);
                 return;
@@ -151,7 +135,6 @@ namespace setting_writer_internal
                 return;
             }
 
-            copyDisplayText(g_state.previousDisplayText, snapshot.text);
             g_state.stepStarted = false;
             g_state.keysReleased = false;
         }
@@ -220,9 +203,7 @@ namespace setting_writer_internal
 
     void runCurrentStep(uint32_t now)
     {
-        uint8_t stepCount = 0;
-        const SettingWriterStep *script = currentScript(stepCount);
-        const SettingWriterStep &step = script[g_state.currentStepIndex];
+        const SettingWriterStep &step = kWriteScript[g_state.currentStepIndex];
 
         switch (step.kind)
         {
@@ -242,7 +223,7 @@ namespace setting_writer_internal
             return;
         }
 
-        if (g_state.currentStepIndex == stepCount)
+        if (g_state.currentStepIndex == kWriteScriptStepCount)
         {
             finishWrite();
         }

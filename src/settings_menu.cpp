@@ -133,7 +133,7 @@ namespace
     bool setCurrentEntryKey(const char *displayText)
     {
         char parsedKey[4] = {0};
-        if (!parseDisplayKey(displayText, parsedKey))
+        if (!parseSettingKey(displayText, parsedKey))
         {
             return false;
         }
@@ -286,7 +286,7 @@ namespace
         case SettingsAction::SelectNextEntry:
         {
             char parsedKey[4] = {0};
-            if (!parseDisplayKey(snapshot.text, parsedKey))
+            if (!parseSettingKey(snapshot.text, parsedKey))
             {
                 return SettingStepResult::Pending;
             }
