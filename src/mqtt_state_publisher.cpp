@@ -7,6 +7,7 @@
 #include "ha_entity_definitions.h"
 #include "mqtt_topics.h"
 #include "sensors_menu.h"
+#include "setting_writer.h"
 #include "settings_menu.h"
 #include "ventilation_mode_state.h"
 
@@ -15,10 +16,81 @@
 
 namespace
 {
+    constexpr size_t kPublishedStateCacheCapacity = 64;
+
+    struct PublishedStateCacheEntry
+    {
+        bool occupied = false;
+        char key[32] = {0};
+        char payload[64] = {0};
+    };
+
+    PublishedStateCacheEntry g_publishedStateCache[kPublishedStateCacheCapacity];
+
+    PublishedStateCacheEntry *findPublishedStateCacheEntry(const char *key)
+    {
+        if (key == nullptr || key[0] == '\0')
+        {
+            return nullptr;
+        }
+
+        for (size_t index = 0; index < kPublishedStateCacheCapacity; ++index)
+        {
+            PublishedStateCacheEntry &entry = g_publishedStateCache[index];
+            if (entry.occupied && std::strcmp(entry.key, key) == 0)
+            {
+                return &entry;
+            }
+        }
+
+        for (size_t index = 0; index < kPublishedStateCacheCapacity; ++index)
+        {
+            PublishedStateCacheEntry &entry = g_publishedStateCache[index];
+            if (entry.occupied)
+            {
+                continue;
+            }
+
+            entry.occupied = true;
+            std::strncpy(entry.key, key, sizeof(entry.key) - 1U);
+            entry.key[sizeof(entry.key) - 1U] = '\0';
+            entry.payload[0] = '\0';
+            return &entry;
+        }
+
+        return nullptr;
+    }
+
     bool publishStateValue(PubSubClient &mqttClient, const String &nodeId, const char *key, const String &payload)
     {
-        const String topic = mqttBuildStateTopic(nodeId, key);
+        const String topic = getStateTopic(nodeId, key);
         return mqttClient.publish(topic.c_str(), payload.c_str(), true);
+    }
+
+    bool publishChangedStateValue(PubSubClient &mqttClient,
+                                  const String &nodeId,
+                                  const char *key,
+                                  const String &payload,
+                                  bool forcePublish)
+    {
+        PublishedStateCacheEntry *entry = findPublishedStateCacheEntry(key);
+        if (entry != nullptr && !forcePublish && std::strcmp(entry->payload, payload.c_str()) == 0)
+        {
+            return true;
+        }
+
+        if (!publishStateValue(mqttClient, nodeId, key, payload))
+        {
+            return false;
+        }
+
+        if (entry != nullptr)
+        {
+            std::strncpy(entry->payload, payload.c_str(), sizeof(entry->payload) - 1U);
+            entry->payload[sizeof(entry->payload) - 1U] = '\0';
+        }
+
+        return true;
     }
 
     int32_t numberScaleFactor(const HaEntityDefinition &definition)
@@ -49,23 +121,33 @@ namespace
                       definition.suggestedDisplayPrecision);
     }
 
-    bool publishIntegerValue(PubSubClient &mqttClient, const String &nodeId, const char *key, int32_t value)
+    bool publishIntegerValue(PubSubClient &mqttClient,
+                             const String &nodeId,
+                             const char *key,
+                             int32_t value,
+                             bool forcePublish)
     {
-        return publishStateValue(mqttClient, nodeId, key, String(value));
+        return publishChangedStateValue(mqttClient, nodeId, key, String(value), forcePublish);
     }
 
     bool publishNumberValue(PubSubClient &mqttClient,
                             const String &nodeId,
                             const HaEntityDefinition &definition,
-                            int32_t rawValue)
+                            int32_t rawValue,
+                            bool forcePublish)
     {
-        return publishStateValue(mqttClient, nodeId, definition.key, formatNumberStatePayload(definition, rawValue));
+        return publishChangedStateValue(mqttClient,
+                                        nodeId,
+                                        definition.key,
+                                        formatNumberStatePayload(definition, rawValue),
+                                        forcePublish);
     }
 
     bool publishSelectValue(PubSubClient &mqttClient,
                             const String &nodeId,
                             const HaEntityDefinition &definition,
-                            int32_t rawValue)
+                            int32_t rawValue,
+                            bool forcePublish)
     {
         for (size_t index = 0; index < definition.optionCount; ++index)
         {
@@ -75,7 +157,7 @@ namespace
                 continue;
             }
 
-            return publishStateValue(mqttClient, nodeId, definition.key, option.label);
+            return publishChangedStateValue(mqttClient, nodeId, definition.key, option.label, forcePublish);
         }
 
         return false;
@@ -124,7 +206,7 @@ namespace
         return false;
     }
 
-    bool publishCo2States(PubSubClient &mqttClient, const String &nodeId)
+    bool publishCo2States(PubSubClient &mqttClient, const String &nodeId, bool forcePublish)
     {
         const Co2SensorStatus status = getCo2SensorStatus();
         if (!status.dataValid)
@@ -132,13 +214,13 @@ namespace
             return true;
         }
 
-        return publishStateValue(mqttClient, nodeId, "co2_ppm", String(status.co2Ppm)) &&
-               publishStateValue(mqttClient, nodeId, "co2_temperature", String(status.temperatureC, 1)) &&
-               publishStateValue(mqttClient, nodeId, "co2_humidity", String(status.humidityPct, 1)) &&
-               publishStateValue(mqttClient, nodeId, "co2_absolute_humidity", String(status.absoluteHumidityGm3, 1));
+        return publishChangedStateValue(mqttClient, nodeId, "co2_ppm", String(status.co2Ppm), forcePublish) &&
+               publishChangedStateValue(mqttClient, nodeId, "co2_temperature", String(status.temperatureC, 1), forcePublish) &&
+               publishChangedStateValue(mqttClient, nodeId, "co2_humidity", String(status.humidityPct, 1), forcePublish) &&
+               publishChangedStateValue(mqttClient, nodeId, "co2_absolute_humidity", String(status.absoluteHumidityGm3, 1), forcePublish);
     }
 
-    bool publishSensorMenuStates(PubSubClient &mqttClient, const String &nodeId)
+    bool publishSensorMenuStates(PubSubClient &mqttClient, const String &nodeId, bool forcePublish)
     {
         const SensorsMenuStatus status = getSensorsMenuStatus();
         if (status.lastCompletedMs == 0)
@@ -160,7 +242,7 @@ namespace
                 continue;
             }
 
-            if (!publishIntegerValue(mqttClient, nodeId, definition->key, value))
+            if (!publishIntegerValue(mqttClient, nodeId, definition->key, value, forcePublish))
             {
                 return false;
             }
@@ -169,13 +251,11 @@ namespace
         return true;
     }
 
-    bool publishSettingsStates(PubSubClient &mqttClient, const String &nodeId)
+    bool publishSettingsStates(PubSubClient &mqttClient, const String &nodeId, bool forcePublish)
     {
         const SettingsMenuStatus status = getSettingsMenuStatus();
-        if (status.lastCompletedMs == 0)
-        {
-            return true;
-        }
+        const SettingWriterStatus writerStatus = getSettingWriterStatus();
+        const bool hasRecentWrite = !writerStatus.running && writerStatus.lastCompletedMs != 0 && writerStatus.key[0] != '\0';
 
         for (size_t index = 0; index < getHaEntityDefinitionCount(); ++index)
         {
@@ -185,15 +265,32 @@ namespace
                 continue;
             }
 
-            SettingsMenuValue value{};
-            if (!tryGetSettingsValueByKey(status, definition->key, value) || !value.hasValue)
+            int32_t rawValue = 0;
+            bool hasValue = false;
+
+            if (hasRecentWrite && std::strcmp(writerStatus.key, definition->key) == 0)
+            {
+                rawValue = writerStatus.value;
+                hasValue = true;
+            }
+            else if (status.lastCompletedMs != 0)
+            {
+                SettingsMenuValue value{};
+                if (tryGetSettingsValueByKey(status, definition->key, value) && value.hasValue)
+                {
+                    rawValue = value.value;
+                    hasValue = true;
+                }
+            }
+
+            if (!hasValue)
             {
                 continue;
             }
 
             const bool published = definition->platform == HaEntityPlatform::Select
-                                       ? publishSelectValue(mqttClient, nodeId, *definition, value.value)
-                                       : publishNumberValue(mqttClient, nodeId, *definition, value.value);
+                                       ? publishSelectValue(mqttClient, nodeId, *definition, rawValue, forcePublish)
+                                       : publishNumberValue(mqttClient, nodeId, *definition, rawValue, forcePublish);
             if (!published)
             {
                 return false;
@@ -204,12 +301,11 @@ namespace
     }
 } // namespace
 
-bool mqttStatePublisherPublishAllStates(PubSubClient &mqttClient,
-                                        const String &nodeId)
+bool publishStates(PubSubClient &mqttClient, const String &nodeId, bool forcePublish)
 {
-    return publishCo2States(mqttClient, nodeId) &&
-           publishSensorMenuStates(mqttClient, nodeId) &&
-           publishSettingsStates(mqttClient, nodeId) &&
-           publishIntegerValue(mqttClient, nodeId, "rssi", WiFi.RSSI()) &&
-            publishStateValue(mqttClient, nodeId, "ventilation_mode", ventilationModeStateGetLabel());
+    return publishCo2States(mqttClient, nodeId, forcePublish) &&
+           publishSensorMenuStates(mqttClient, nodeId, forcePublish) &&
+           publishSettingsStates(mqttClient, nodeId, forcePublish) &&
+           publishStateValue(mqttClient, nodeId, "rssi", String(WiFi.RSSI())) &&
+           publishChangedStateValue(mqttClient, nodeId, "ventilation_mode", ventilationModeStateGetLabel(), forcePublish);
 }

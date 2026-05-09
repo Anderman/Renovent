@@ -138,10 +138,7 @@ void handleStatus() {
   doc["settingsMenuLastCompletedMs"] = settingsMenuStatus.lastCompletedMs;
   doc["settingWriterRunning"] = settingWriterStatus.running;
   doc["settingWriterKey"] = settingWriterStatus.key;
-  doc["settingWriterCurrentValue"] = settingWriterStatus.currentValue;
-  doc["settingWriterTargetValue"] = settingWriterStatus.targetValue;
-  doc["settingWriterPhase"] = settingWriterStatus.phase;
-  doc["settingWriterDisplay"] = settingWriterStatus.lastDisplayText;
+  doc["settingWriterValue"] = settingWriterStatus.value;
   doc["settingWriterLastCompletedMs"] = settingWriterStatus.lastCompletedMs;
 
   JsonArray settingsMenuEntries = doc["settingsMenuEntries"].to<JsonArray>();
@@ -295,39 +292,41 @@ void handleSetValue() {
 
   const char *requestedKey = doc["key"] | "";
   const int32_t requestedValue = doc["value"] | 0;
-  const SettingWriteResult result = requestSettingWriteDetailed(requestedKey, requestedValue);
+  const SettingWriteStatus status = writeSetting(requestedKey, requestedValue);
+  const bool scheduled = status == SettingWriteStatus::Scheduled;
+  const DisplaySnapshot snapshot = getDisplaySnapshot();
 
   const char *reason = "none";
   const char *message = "Waarde ingepland.";
-  switch (result.rejectReason) {
-    case SettingWriteRejectReason::Busy:
+  switch (status) {
+    case SettingWriteStatus::Busy:
       reason = "busy";
       message = "Schrijfactie geweigerd: menu of writer is al bezig.";
       break;
-    case SettingWriteRejectReason::InvalidKey:
+    case SettingWriteStatus::InvalidKey:
       reason = "invalid_key";
       message = "Schrijfactie geweigerd: ongeldige firmware-key.";
       break;
-    case SettingWriteRejectReason::InvalidStartDisplay:
+    case SettingWriteStatus::InvalidStartDisplay:
       reason = "invalid_start_display";
       message = "Schrijfactie geweigerd: start vanaf het homescherm 0./1./2./3..";
       break;
-    case SettingWriteRejectReason::None:
+    case SettingWriteStatus::Scheduled:
       break;
   }
 
   JsonDocument response;
-  response["scheduled"] = result.scheduled;
+  response["scheduled"] = scheduled;
   response["reason"] = reason;
   response["message"] = message;
-  response["key"] = result.scheduled ? result.key : "";
-  response["value"] = result.scheduled ? result.targetValue : 0;
-  response["displayText"] = result.displayText;
+  response["key"] = scheduled ? requestedKey : "";
+  response["value"] = scheduled ? requestedValue : 0;
+  response["displayText"] = snapshot.text;
 
   String output;
   serializeJson(response, output);
   sendCorsHeaders();
-  server.send(result.scheduled ? 202 : 409, "application/json", output);
+  server.send(scheduled ? 202 : 409, "application/json", output);
 }
 
 void handleSensorsMenuStart() {

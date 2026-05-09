@@ -4,5 +4,6 @@
 
 class PubSubClient;
 
-bool mqttStatePublisherPublishAllStates(PubSubClient &mqttClient,
-                                        const String &nodeId);
+bool publishStates(PubSubClient &mqttClient,
+                   const String &nodeId,
+                   bool forcePublish);

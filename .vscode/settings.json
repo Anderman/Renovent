@@ -1,0 +1,9 @@
+{
+    "chat.tools.terminal.autoApprove": {
+        "pio": true,
+        "/^python -m platformio run -t nobuild ; python \"%USERPROFILE%\\\\\\.platformio\\\\packages\\\\framework-arduinoespressif32\\\\tools\\\\espota\\.py\" --debug --host_ip 0\\.0\\.0\\.0 --host_port 54983 --esp_ip 192\\.168\\.2\\.91 --esp_port 3232 --auth=Rnv8x3Qp7Lk2Zm5H --image \"\\.pio\\\\build\\\\esp32s3mini_ota\\\\firmware\\.bin\"$/": {
+            "approve": true,
+            "matchCommandLine": true
+        }
+    }
+}

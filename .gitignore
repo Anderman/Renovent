@@ -76,3 +76,5 @@ fp-info-cache
 # -------------------------
 *.wrl
 .build/*
+scripts/__pycache__
+

@@ -17,6 +17,6 @@ void mqttCommandHandlerPop();
 bool mqttCommandHandlerTryGetOptionValueForLabel(const HaEntityDefinition &definition,
                                                  const char *label,
                                                  int32_t &value);
-bool mqttCommandHandlerParseNumberPayload(const HaEntityDefinition &definition,
+bool tryParseNumber(const HaEntityDefinition &definition,
                                           const char *payload,
                                           int32_t &value);

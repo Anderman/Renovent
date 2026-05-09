@@ -1,26 +1,25 @@
 #include "mqtt_topics.h"
-
 #include "ha_entity_definitions.h"
 
-String mqttBuildRenoventRootTopic(const String &nodeId)
+String getRootTopic(const String &nodeId)
 {
     return String("renovent/") + nodeId;
 }
 
-String mqttBuildAvailabilityTopic(const String &nodeId)
+String getAvailabilityTopic(const String &nodeId)
 {
     const HaRootDefinition &root = getHaRootDefinition();
-    return mqttBuildRenoventRootTopic(nodeId) + "/" + root.availabilityTopicSuffix;
+    return getRootTopic(nodeId) + "/" + root.availabilityTopicSuffix;
 }
 
-String mqttBuildStateTopic(const String &nodeId, const char *key)
+String getStateTopic(const String &nodeId, const char *key)
 {
     const HaRootDefinition &root = getHaRootDefinition();
-    return mqttBuildRenoventRootTopic(nodeId) + "/" + root.stateTopicRoot + "/" + key;
+    return getRootTopic(nodeId) + "/" + root.stateTopicRoot + "/" + key;
 }
 
-String mqttBuildCommandTopic(const String &nodeId, const char *key)
+String getCommandTopic(const String &nodeId, const char *key)
 {
     const HaRootDefinition &root = getHaRootDefinition();
-    return mqttBuildRenoventRootTopic(nodeId) + "/" + root.commandTopicRoot + "/" + key;
+    return getRootTopic(nodeId) + "/" + root.commandTopicRoot + "/" + key;
 }

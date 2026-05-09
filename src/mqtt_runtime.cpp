@@ -23,8 +23,6 @@ namespace
 
     constexpr unsigned long kReconnectIntervalMs = 5000;
     constexpr uint16_t kMqttBufferSize = 3072;
-    constexpr char kAvailabilityPayloadOnline[] = "online";
-    constexpr char kAvailabilityPayloadOffline[] = "offline";
     constexpr uint32_t kVentilationModeHoldMs = 800;
     WiFiClient g_wifiClient;
     PubSubClient g_mqttClient(g_wifiClient);
@@ -38,7 +36,7 @@ namespace
         mqttCommandHandlerQueueClear();
     }
 
-    void disconnectMqttIfConnected()
+    void disconnect()
     {
         if (g_mqttClient.connected())
         {
@@ -61,7 +59,7 @@ namespace
                 continue;
             }
 
-            const String topic = mqttBuildCommandTopic(nodeId, definition->key);
+            const String topic = getCommandTopic(nodeId, definition->key);
             if (!g_mqttClient.subscribe(topic.c_str()))
             {
                 return false;
@@ -74,6 +72,40 @@ namespace
     bool commandExecutionBlocked()
     {
         return sensorsMenuIsBusy() || settingsMenuIsBusy() || settingWriterIsBusy();
+    }
+
+    const HaEntityDefinition *findWritableCommandDefinition(const char *key)
+    {
+        if (key == nullptr || key[0] == '\0')
+        {
+            return nullptr;
+        }
+
+        const HaEntityDefinition *definition = findHaEntityDefinitionByKey(key);
+        if (definition == nullptr || !definition->writable)
+        {
+            return nullptr;
+        }
+
+        return definition;
+    }
+
+    const HaEntityDefinition *tryResolveWritableCommandTopic(const char *topic, const String &nodeId)
+    {
+        if (topic == nullptr)
+        {
+            return nullptr;
+        }
+
+        const HaRootDefinition &root = getHaRootDefinition();
+        const String topicPrefix = getRootTopic(nodeId) + "/" + root.commandTopicRoot + "/";
+        if (!String(topic).startsWith(topicPrefix))
+        {
+            return nullptr;
+        }
+
+        const char *key = topic + topicPrefix.length();
+        return findWritableCommandDefinition(key);
     }
 
     bool handleVentilationModeCommand(const char *payload)
@@ -96,7 +128,7 @@ namespace
         return true;
     }
 
-    bool handleSettingCommand(const HaEntityDefinition &definition, const char *payload)
+    SettingWriteStatus handleSettingCommand(const HaEntityDefinition &definition, const char *payload)
     {
         int32_t value = 0;
         if (definition.platform == HaEntityPlatform::Select)
@@ -106,54 +138,59 @@ namespace
                 value = std::atoi(payload);
             }
         }
-        else if (!mqttCommandHandlerParseNumberPayload(definition, payload, value))
+        else if (!tryParseNumber(definition, payload, value))
+        {
+            return SettingWriteStatus::InvalidKey;
+        }
+
+        return writeSetting(definition.key, value);
+    }
+
+    bool shouldRetryQueuedCommand(const MqttQueuedCommand &command)
+    {
+        const HaEntityDefinition *definition = findWritableCommandDefinition(command.key);
+        if (definition == nullptr)
         {
             return false;
         }
 
-        return requestSettingWrite(definition.key, value);
+        if (std::strcmp(definition->key, "ventilation_mode") == 0)
+        {
+            return !handleVentilationModeCommand(command.payload);
+        }
+
+        if (definition->sourceType != HaEntitySourceType::Setting)
+        {
+            return false;
+        }
+
+        const SettingWriteStatus status = handleSettingCommand(*definition, command.payload);
+        return status != SettingWriteStatus::Scheduled && status != SettingWriteStatus::InvalidKey;
     }
 
-    bool tryProcessQueuedCommand()
+    void processQueuedCommand()
     {
         if (commandExecutionBlocked())
         {
-            return false;
+            return;
         }
 
         const MqttQueuedCommand *command = mqttCommandHandlerPeek();
         if (command == nullptr)
         {
-            return false;
+            return;
         }
 
-        const HaEntityDefinition *definition = findHaEntityDefinitionByKey(command->key);
-        if (definition == nullptr || !definition->writable)
-        {
-            mqttCommandHandlerPop();
-            return true;
-        }
-
-        const bool handled = std::strcmp(definition->key, "ventilation_mode") == 0
-                     ? handleVentilationModeCommand(command->payload)
-                     : (definition->sourceType == HaEntitySourceType::Setting && handleSettingCommand(*definition, command->payload));
-
-        if (!handled)
-        {
-            return false;
-        }
-
-        mqttCommandHandlerPop();
-        return true;
-    }
-
-    void mqttMessageCallback(char *topic, uint8_t *payloadBytes, unsigned int payloadLength)
-    {
-        if (topic == nullptr)
+        if (shouldRetryQueuedCommand(*command))
         {
             return;
         }
 
+        mqttCommandHandlerPop();
+    }
+
+    void mqttMessageCallback(char *topic, uint8_t *payloadBytes, unsigned int payloadLength)
+    {
         char payload[32] = "";
         const size_t copyLength = payloadLength < sizeof(payload) - 1U ? payloadLength : sizeof(payload) - 1U;
         if (copyLength > 0)
@@ -163,21 +200,8 @@ namespace
         payload[copyLength] = '\0';
 
         const String nodeId = buildNodeId();
-        const HaRootDefinition &root = getHaRootDefinition();
-        const String topicPrefix = mqttBuildRenoventRootTopic(nodeId) + "/" + root.commandTopicRoot + "/";
-        if (!String(topic).startsWith(topicPrefix))
-        {
-            return;
-        }
-
-        const char *key = topic + topicPrefix.length();
-        if (key[0] == '\0')
-        {
-            return;
-        }
-
-        const HaEntityDefinition *definition = findHaEntityDefinitionByKey(key);
-        if (definition == nullptr || !definition->writable)
+        const HaEntityDefinition *definition = tryResolveWritableCommandTopic(topic, nodeId);
+        if (definition == nullptr)
         {
             return;
         }
@@ -189,27 +213,21 @@ namespace
     {
         const MqttConfig &config = getMqttConfig();
         const String nodeId = buildNodeId();
-        const String availabilityTopic = mqttBuildAvailabilityTopic(nodeId);
+        const String availabilityTopic = getAvailabilityTopic(nodeId);
         const String clientId = String("renovent-") + nodeId;
+        const char *user = config.mqttUser.isEmpty() ? nullptr : config.mqttUser.c_str();
+        const char *password = config.mqttUser.isEmpty() ? nullptr : config.mqttPassword.c_str();
 
         g_mqttClient.setServer(config.mqttHost.c_str(), config.mqttPort);
         g_mqttClient.setBufferSize(kMqttBufferSize);
 
-        const bool connected = config.mqttUser.isEmpty()
-                                   ? g_mqttClient.connect(clientId.c_str(), availabilityTopic.c_str(), 0, true, kAvailabilityPayloadOffline)
-                                   : g_mqttClient.connect(clientId.c_str(),
-                                                          config.mqttUser.c_str(),
-                                                          config.mqttPassword.c_str(),
-                                                          availabilityTopic.c_str(),
-                                                          0,
-                                                          true,
-                                                          kAvailabilityPayloadOffline);
+        const bool connected = g_mqttClient.connect(clientId.c_str(), user, password, availabilityTopic.c_str(), 0, true, "offline");
 
         if (connected)
         {
             if (!subscribeWritableCommandTopics(nodeId))
             {
-                disconnectMqttIfConnected();
+                disconnect();
                 return false;
             }
             g_publishDiscoveryPending = true;
@@ -225,7 +243,7 @@ namespace
         return WiFi.status() == WL_CONNECTED && !config.mqttHost.isEmpty() && config.mqttPort != 0;
     }
 
-    bool ensureMqttConnected()
+    bool ensureConnected()
     {
         if (g_mqttClient.connected())
         {
@@ -244,12 +262,11 @@ namespace
 
     bool publishPendingMqttData(const String &nodeId)
     {
+        const bool forcePublish = g_publishDiscoveryPending;
+
         if (g_publishDiscoveryPending)
         {
-            if (!mqttDiscoveryPublisherPublish(g_mqttClient,
-                                               nodeId,
-                                               mqttBuildAvailabilityTopic(nodeId),
-                                               kAvailabilityPayloadOnline))
+            if (!publishDiscovery(g_mqttClient, nodeId))
             {
                 return false;
             }
@@ -257,7 +274,7 @@ namespace
             g_publishDiscoveryPending = false;
         }
 
-        return mqttStatePublisherPublishAllStates(g_mqttClient, nodeId);
+        return publishStates(g_mqttClient, nodeId, forcePublish);
     }
 
 } // namespace
@@ -273,28 +290,28 @@ void mqttRuntimeLoop()
 {
     if (!runtimeSessionAllowed())
     {
-        disconnectMqttIfConnected();
+        disconnect();
         return;
     }
 
-    if (!ensureMqttConnected())
+    if (!ensureConnected())
     {
         return;
     }
 
     g_mqttClient.loop();
-    tryProcessQueuedCommand();
+    processQueuedCommand();
 
     if (publishPendingMqttData(buildNodeId()))
     {
         return;
     }
 
-    disconnectMqttIfConnected();
+    disconnect();
 }
 
 void mqttRuntimeResetSession()
 {
     resetMqttSessionState();
-    disconnectMqttIfConnected();
+    disconnect();
 }

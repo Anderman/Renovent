@@ -84,7 +84,7 @@ void populateCommonPayloadFields(JsonDocument &doc,
 void populateSensorPayload(JsonDocument &doc,
                            const String &nodeId,
                            const HaEntityDefinition &definition) {
-  doc["state_topic"] = mqttBuildStateTopic(nodeId, definition.key);
+  doc["state_topic"] = getStateTopic(nodeId, definition.key);
   if (shouldIncludeDeviceClass(definition)) {
     doc["device_class"] = definition.deviceClass;
   }
@@ -102,8 +102,8 @@ void populateSensorPayload(JsonDocument &doc,
 void populateNumberPayload(JsonDocument &doc,
                            const String &nodeId,
                            const HaEntityDefinition &definition) {
-  doc["state_topic"] = mqttBuildStateTopic(nodeId, definition.key);
-  doc["command_topic"] = mqttBuildCommandTopic(nodeId, definition.key);
+  doc["state_topic"] = getStateTopic(nodeId, definition.key);
+  doc["command_topic"] = getCommandTopic(nodeId, definition.key);
   doc["optimistic"] = false;
 
   if (definition.hasMin) {
@@ -123,8 +123,8 @@ void populateNumberPayload(JsonDocument &doc,
 void populateSelectPayload(JsonDocument &doc,
                            const String &nodeId,
                            const HaEntityDefinition &definition) {
-  doc["state_topic"] = mqttBuildStateTopic(nodeId, definition.key);
-  doc["command_topic"] = mqttBuildCommandTopic(nodeId, definition.key);
+  doc["state_topic"] = getStateTopic(nodeId, definition.key);
+  doc["command_topic"] = getCommandTopic(nodeId, definition.key);
   doc["optimistic"] = false;
 
   JsonArray options = doc["options"].to<JsonArray>();
