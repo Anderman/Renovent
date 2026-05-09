@@ -214,6 +214,13 @@ namespace
         advanceToStep(static_cast<uint8_t>(g_state.currentStepIndex + 1U));
     }
 
+    DisplaySnapshot readCurrentDisplaySnapshot()
+    {
+        const DisplaySnapshot snapshot = getDisplaySnapshot();
+        copyDisplayText(g_state.lastDisplayText, snapshot.text);
+        return snapshot;
+    }
+
     void finishRead()
     {
         pressKeys(kKeyNone);
@@ -318,8 +325,7 @@ namespace
             return;
         }
 
-        const DisplaySnapshot snapshot = getDisplaySnapshot();
-        copyDisplayText(g_state.lastDisplayText, snapshot.text);
+        const DisplaySnapshot snapshot = readCurrentDisplaySnapshot();
 
         switch (handleCurrentStepAction(snapshot))
         {

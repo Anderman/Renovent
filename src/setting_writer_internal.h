@@ -19,6 +19,8 @@ struct SettingWriterState
   bool stepStarted = false;
   bool keysReleased = false;
   int32_t currentValue = 0;
+  bool increasing = false;
+  bool adjustTimedOut = false;
   char previousDisplayText[9] = {0};
   char lastDisplayText[9] = {0};
   SettingWriteRequest request = {};
