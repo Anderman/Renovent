@@ -3,19 +3,19 @@
 #include <SPIFFS.h>
 #include <WiFi.h>
 
-#include "../co2_sensor.h"
-#include "../display_reader.h"
-#include "../sensors_menu.h"
-#include "../input_keys.h"
-#include "../keypad.h"
-#include "../key_writer.h"
-#include "../mqtt_config.h"
-#include "../mqtt_runtime.h"
+#include "../hardware/co2_sensor.h"
+#include "../display/display_reader.h"
+#include "../menu/sensors_menu.h"
+#include "../input/input_keys.h"
+#include "../input/keypad.h"
+#include "../input/key_writer.h"
+#include "../mqtt/mqtt_config.h"
+#include "../mqtt/mqtt_runtime.h"
 #include "../ota/auto_update.h"
-#include "../parameter_definitions.h"
-#include "../reset_info.h"
-#include "../setting_writer.h"
-#include "../settings_menu.h"
+#include "../menu/parameter_definitions.h"
+#include "../core/reset_info.h"
+#include "../menu/setting_writer.h"
+#include "../menu/settings_menu.h"
 
 WebServer server(80);
 
