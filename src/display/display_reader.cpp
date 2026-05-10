@@ -51,10 +51,6 @@ namespace
     uint8_t g_snapshotDigitMasks[4] = {0, 0, 0, 0};
     volatile bool g_frameReadyPending = false;
     volatile uint8_t g_isrLastSelectIndex = 0;
-    volatile uint32_t g_completeFrameCount = 0;
-    volatile uint32_t g_missedSelectFrameCount = 0;
-    uint32_t g_publishedFrameCount = 0;
-    uint32_t g_lastStatsLogMs = 0;
 
     uint8_t IRAM_ATTR readSelectIndex(uint32_t gpioSnapshot)
     {
@@ -95,41 +91,6 @@ namespace
         portEXIT_CRITICAL(&g_displayMux);
 
         keyWriterOnDisplayChangedHook(g_snapshot.text);
-        g_publishedFrameCount = g_publishedFrameCount + 1U;
-    }
-
-    uint8_t toMissedSelectPercent(uint32_t completeFrames, uint32_t missedFrames)
-    {
-        const uint32_t totalFrames = completeFrames + missedFrames;
-        if (totalFrames == 0U)
-        {
-            return 0U;
-        }
-
-        return static_cast<uint8_t>((missedFrames * 100U + (totalFrames / 2U)) / totalFrames);
-    }
-
-    void logDisplayReaderStats()
-    {
-        const uint32_t now = millis();
-        if (now - g_lastStatsLogMs < 5000U)
-        {
-            return;
-        }
-
-        uint32_t completeFrames = 0;
-        uint32_t missedFrames = 0;
-        portENTER_CRITICAL(&g_frameReadyMux);
-        completeFrames = g_completeFrameCount;
-        missedFrames = g_missedSelectFrameCount;
-        portEXIT_CRITICAL(&g_frameReadyMux);
-
-        g_lastStatsLogMs = now;
-        Serial.printf("[display] frames complete=%lu missedSelect=%lu missedPct=%u published=%lu\n",
-                      static_cast<unsigned long>(completeFrames),
-                      static_cast<unsigned long>(missedFrames),
-                      static_cast<unsigned>(toMissedSelectPercent(completeFrames, missedFrames)),
-                      static_cast<unsigned long>(g_publishedFrameCount));
     }
 
     void publishIfStableFrame(const FrameState &frame)
@@ -183,7 +144,6 @@ namespace
         const uint8_t expectedNextSelect = (g_isrLastSelectIndex + 1U) % 8U;
         if (selectIndex != expectedNextSelect)
         {
-            g_missedSelectFrameCount = g_missedSelectFrameCount + 1U;
             clearIsrWorkingFrame();
             g_isrLastSelectIndex = 7U;
             return;
@@ -196,7 +156,6 @@ namespace
 
         if (selectIndex == 7U)
         {
-            g_completeFrameCount = g_completeFrameCount + 1U;
             latchReadyFrame();
             clearIsrWorkingFrame();
         }
@@ -218,8 +177,6 @@ void displayReaderSetup()
 
 void displayReaderLoop()
 {
-    logDisplayReaderStats();
-
     if (!g_frameReadyPending)
     {
         return;
