@@ -1,0 +1,56 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+  --font-sans: "Segoe UI", "Trebuchet MS", sans-serif;
+}
+
+@layer base {
+  html,
+  body,
+  #app {
+    min-height: 100%;
+  }
+
+  body {
+    @apply bg-slate-100 text-slate-900 antialiased transition-colors dark:bg-slate-950 dark:text-slate-100;
+    background-image:
+      radial-gradient(circle at top left, rgba(16, 185, 129, 0.18), transparent 24%),
+      radial-gradient(circle at bottom right, rgba(30, 41, 59, 0.18), transparent 28%);
+  }
+
+  button {
+    @apply cursor-pointer;
+  }
+}
+
+@layer components {
+  .panel {
+    @apply rounded-3xl border border-slate-200/70 bg-white/85 p-5 shadow-xl shadow-slate-900/5 backdrop-blur dark:border-slate-800 dark:bg-slate-900/75 dark:shadow-black/20;
+  }
+
+  .panel-title {
+    @apply text-lg font-semibold tracking-wide text-slate-900 dark:text-slate-50;
+  }
+
+  .muted {
+    @apply text-sm text-slate-500 dark:text-slate-400;
+  }
+
+  .btn {
+    @apply inline-flex items-center justify-center rounded-2xl border border-emerald-600 bg-emerald-600 px-4 py-2 text-sm font-semibold text-white transition hover:border-emerald-500 hover:bg-emerald-500 disabled:cursor-not-allowed disabled:opacity-60;
+  }
+
+  .btn-secondary {
+    @apply border-slate-300 bg-white text-slate-700 hover:border-slate-400 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:border-slate-600 dark:hover:bg-slate-800;
+  }
+
+  .input {
+    @apply w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 outline-none ring-0 transition placeholder:text-slate-400 focus:border-emerald-500 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100;
+  }
+
+  .chip {
+    @apply inline-flex items-center rounded-full border border-slate-300/80 px-3 py-1 text-xs font-medium text-slate-600 dark:border-slate-700 dark:text-slate-300;
+  }
+}
