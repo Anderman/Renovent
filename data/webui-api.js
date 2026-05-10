@@ -24,6 +24,10 @@ export async function fetchKeyPressLogData() {
 	return getJson("/api/key-press-log");
 }
 
+export async function fetchTextLogData() {
+	return getJson("/api/text-log");
+}
+
 export async function fetchMqttConfigData() {
 	return getJson("/api/mqtt/config");
 }

@@ -10,6 +10,7 @@
 #include "menu/setting_writer.h"
 #include "menu/settings_menu.h"
 #include "core/ventilation_mode_state.h"
+#include "webui/text_log.h"
 
 #include <cstdlib>
 #include <cstring>
@@ -17,6 +18,7 @@
 namespace
 {
     constexpr size_t kPublishedStateCacheCapacity = 64;
+    uint32_t g_lastForcedCompletedWriteMs = 0;
 
     struct PublishedStateCacheEntry
     {
@@ -81,6 +83,7 @@ namespace
 
         if (!publishStateValue(mqttClient, nodeId, key, payload))
         {
+            textLogAddf("HA state fail key=%s payload=%s", key, payload.c_str());
             return false;
         }
 
@@ -255,6 +258,8 @@ namespace
     {
         const SettingsMenuHaStatus status = getSettingsMenuHaStatus();
         const SettingWriterStatus writerStatus = getSettingWriterStatus();
+        const bool hasCompletedWriteToRepublish = writerStatus.lastCompletedMs != 0 &&
+                                                  writerStatus.lastCompletedMs != g_lastForcedCompletedWriteMs;
 
         for (size_t index = 0; index < getHaEntityDefinitionCount(); ++index)
         {
@@ -279,13 +284,16 @@ namespace
                 }
 
                 bool published = false;
+                const bool forcePublishForEntry = forcePublish ||
+                                                  (hasCompletedWriteToRepublish &&
+                                                   std::strcmp(writerStatus.key, definition->key) == 0);
                 if (definition->platform == HaEntityPlatform::Select)
                 {
-                    published = publishSelectValue(mqttClient, nodeId, *definition, value.rawValue, forcePublish);
+                    published = publishSelectValue(mqttClient, nodeId, *definition, value.rawValue, forcePublishForEntry);
                 }
                 else if (value.hasValue)
                 {
-                    published = publishNumberValue(mqttClient, nodeId, *definition, value.value, forcePublish);
+                    published = publishNumberValue(mqttClient, nodeId, *definition, value.value, forcePublishForEntry);
                 }
 
                 if (!published)
@@ -296,6 +304,11 @@ namespace
                     }
 
                     continue;
+                }
+
+                if (hasCompletedWriteToRepublish && std::strcmp(writerStatus.key, definition->key) == 0)
+                {
+                    g_lastForcedCompletedWriteMs = writerStatus.lastCompletedMs;
                 }
 
                 continue;

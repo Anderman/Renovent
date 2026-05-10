@@ -16,6 +16,7 @@
 #include "../core/reset_info.h"
 #include "../menu/setting_writer.h"
 #include "../menu/settings_menu.h"
+#include "text_log.h"
 
 WebServer server(80);
 
@@ -23,6 +24,8 @@ namespace {
 bool g_spiffsOk = false;
 constexpr uint16_t kMaxKeyLogApiEntries = 240;
 KeyPressLogEntry g_keyPressLogApiEntries[kMaxKeyLogApiEntries] = {};
+constexpr uint16_t kMaxTextLogApiEntries = 400;
+TextLogEntry g_textLogApiEntries[kMaxTextLogApiEntries] = {};
 
 const char *contentTypeForPath(const String &path) {
   if (path.endsWith(".html")) {
@@ -171,6 +174,24 @@ void handleKeyPressLogGet() {
     entry["relativeMs"] = logEntry.relativeMs;
     entry["idleBeforeMs"] = logEntry.idleBeforeMs;
     entry["releaseForMs"] = logEntry.releaseForMs;
+  }
+
+  String output;
+  serializeJson(doc, output);
+  sendCorsHeaders();
+  server.send(200, "application/json", output);
+}
+
+void handleTextLogGet() {
+  const uint16_t returnedTextLogEntries = textLogCopyEntries(g_textLogApiEntries, kMaxTextLogApiEntries);
+
+  JsonDocument doc;
+  JsonArray entries = doc["entries"].to<JsonArray>();
+  for (uint16_t index = 0; index < returnedTextLogEntries; ++index) {
+    const TextLogEntry &logEntry = g_textLogApiEntries[index];
+    JsonObject entry = entries.add<JsonObject>();
+    entry["timestampMs"] = logEntry.timestampMs;
+    entry["message"] = logEntry.message;
   }
 
   String output;
@@ -444,6 +465,7 @@ void setupWebUi() {
   server.on("/api/parameter-definitions", HTTP_GET, handleParameterDefinitions);
   server.on("/api/status", HTTP_GET, handleStatus);
   server.on("/api/key-press-log", HTTP_GET, handleKeyPressLogGet);
+  server.on("/api/text-log", HTTP_GET, handleTextLogGet);
   server.on("/api/mqtt/config", HTTP_GET, handleMqttConfigGet);
   server.on("/api/mqtt/config", HTTP_POST, handleMqttConfigPost);
   server.on("/api/sensors-menu", HTTP_GET, handleSensorsMenuGet);
@@ -453,6 +475,8 @@ void setupWebUi() {
   server.on("/api/settings-menu/read", HTTP_POST, handleSettingsMenuRead);
   server.onNotFound(handleNotFound);
   server.begin();
+
+  textLogAdd("WebUI text logger ready");
 }
 
 void webUiLoop() {

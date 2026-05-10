@@ -5,8 +5,8 @@ export function buildLoggingPanel() {
 		<div class="advanced-grid">
 			<section class="panel wide">
 				<header>
-					<h2>UI textlog</h2>
-					<span class="note">Laatste 400 regels uit de webinterface</span>
+					<h2>Firmware textlog</h2>
+					<span class="note">400 regels uit de ESP32 backend</span>
 				</header>
 				<div id="text-log-output" class="text-log-output"></div>
 			</section>
@@ -26,22 +26,40 @@ export function collectLoggingElements(elements) {
 }
 
 export function renderLoggingPanel(elements, state) {
-	renderTextLog(elements, state.logs);
+	renderTextLog(elements, state);
 	renderFirmwareLog(elements, state);
 }
 
-export function renderTextLog(elements, logs) {
-	const textLogs = Array.isArray(logs) ? logs : [];
+export function renderTextLog(elements, state) {
+	if (state.textLogLoading) {
+		elements.textLogOutput.innerHTML = `<div class="note">Firmware textlog laden...</div>`;
+		return;
+	}
+
+	if (state.textLogError) {
+		elements.textLogOutput.innerHTML = `<div class="note">${escapeHtml(state.textLogError)}</div>`;
+		return;
+	}
+
+	const textLogs = Array.isArray(state.textLog?.entries) ? [...state.textLog.entries].reverse() : [];
 	elements.textLogOutput.innerHTML = textLogs.length
 		? `
-			<div class="note">${escapeHtml(`${textLogs.length} regels in UI textlog`)}</div>
+			<div class="note">${escapeHtml(`${textLogs.length} regels via /api/text-log`)}</div>
 			<div class="text-log-viewer">${textLogs.map((entry) => `
 				<div class="text-log-line">
-					<span class="text-log-time">${escapeHtml(entry.time ?? "--:--:--")}</span>
+					<span class="text-log-time">${escapeHtml(formatTimestamp(entry.timestampMs))}</span>
 					<span class="text-log-message">${escapeHtml(entry.message ?? "")}</span>
 				</div>`).join("")}
 			</div>`
-		: `<div class="note">Nog geen UI logregels beschikbaar.</div>`;
+		: `<div class="note">Nog geen firmware textlog beschikbaar.</div>`;
+}
+
+function formatTimestamp(timestampMs) {
+	const totalSeconds = Math.floor(Number(timestampMs ?? 0) / 1000);
+	const hours = Math.floor(totalSeconds / 3600);
+	const minutes = Math.floor((totalSeconds % 3600) / 60);
+	const seconds = totalSeconds % 60;
+	return [hours, minutes, seconds].map((value) => String(value).padStart(2, "0")).join(":");
 }
 
 function renderFirmwareLog(elements, state) {

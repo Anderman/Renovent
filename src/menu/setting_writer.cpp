@@ -12,6 +12,7 @@
 #include "menu/settings_menu.h"
 #include "menu/setting_writer_internal.h"
 #include "menu/setting_writer_steps.h"
+#include "webui/text_log.h"
 
 namespace setting_writer_internal
 {
@@ -73,11 +74,7 @@ namespace setting_writer_internal
 
     request.targetHasNumericValue = hasNumericValue && settingValue.hasNumericValue;
     request.targetValue = request.targetHasNumericValue ? numericValue : 0;
-    request.targetDisplayValue[0] = '\0';
-    if (!request.targetHasNumericValue && !tryGetCompactSettingText(displayValue, request.targetDisplayValue))
-    {
-      return SettingWriteStatus::InvalidKey;
-    }
+    copyDisplayText(request.targetDisplayValue, displayValue);
 
     g_state = SettingWriterState{};
     g_state.running = true;
@@ -120,6 +117,7 @@ namespace setting_writer_internal
     std::memcpy(g_lastCompletedKey, g_state.request.key, sizeof(g_lastCompletedKey));
     g_lastCompletedMs = millis();
     g_lastCompletedValue = g_state.currentValue;
+    textLogAddf("HA publish pending key=%s display=%s value=%ld", g_state.request.key, g_state.request.targetDisplayValue, static_cast<long>(g_lastCompletedValue));
     updateSettingsMenuValueFromWrite(g_state.request.key, g_state.request.targetDisplayValue);
 
     g_state = SettingWriterState{};

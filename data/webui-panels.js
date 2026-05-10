@@ -1,6 +1,6 @@
 import { buildDebugPanel, collectDebugElements, renderDebugPanel } from "./webui-panel-debug.js";
 import { buildHomePanel, collectHomeElements, renderHomePanel } from "./webui-panel-home.js";
-import { buildLoggingPanel, collectLoggingElements, renderLoggingPanel, renderTextLog } from "./webui-panel-logging.js";
+import { buildLoggingPanel, collectLoggingElements, renderLoggingPanel } from "./webui-panel-logging.js";
 import { buildMqttPanel, collectMqttElements, renderMqttPanel } from "./webui-panel-mqtt.js";
 
 export function mountPanels(elements) {
@@ -32,5 +32,6 @@ export function renderSensors(elements, sensors) {
 }
 
 export function renderLogs(elements, logs) {
-	renderTextLog(elements, logs);
+	void elements;
+	void logs;
 }

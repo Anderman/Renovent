@@ -1,4 +1,5 @@
 import {
+	fetchTextLogData,
 	fetchKeyPressLogData,
 	fetchLatestSensorsMenuData,
 	fetchMqttConfigData,
@@ -36,6 +37,9 @@ const state = {
 	theme: getInitialTheme(THEME_KEY),
 	menuOpen: false,
 	status: null,
+	textLog: null,
+	textLogLoading: false,
+	textLogError: "",
 	keyPressLog: null,
 	keyPressLogLoading: false,
 	keyPressLogError: "",
@@ -46,7 +50,6 @@ const state = {
 	sensorsPayload: null,
 	latchedKeyMask: 0,
 	latchedKeyTimerId: null,
-	logs: [],
 	refreshTimer: null,
 	lastUpdated: null
 };
@@ -149,7 +152,6 @@ function renderAll() {
 	renderStatus();
 	renderSettings();
 	renderSensors();
-	renderLogs();
 }
 
 function renderPanels() {
@@ -185,14 +187,11 @@ function renderSensors() {
 	renderSensorPanel(elements, state.sensorsPayload);
 }
 
-function renderLogs() {
-	renderLogPanel(elements, state.logs);
-}
-
 async function refreshAll() {
 	await fetchStatus();
 	await syncSensorsSnapshot();
 	if (state.activeTab === "logging") {
+		await fetchTextLog();
 		await fetchKeyPressLog();
 	}
 	renderAll();
@@ -203,9 +202,7 @@ async function fetchStatus() {
 		const status = await fetchStatusData();
 		state.status = status;
 		state.lastUpdated = Date.now();
-		logAction("Status ververst");
-	} catch (error) {
-		logAction(`Status fout: ${error.message}`);
+	} catch {
 	}
 }
 
@@ -222,8 +219,7 @@ async function syncSensorsSnapshot() {
 
 	try {
 		state.sensorsPayload = await fetchLatestSensorsMenuData();
-	} catch (error) {
-		logAction(`Sensorcache fout: ${error.message}`);
+	} catch {
 	}
 }
 
@@ -235,9 +231,21 @@ async function fetchKeyPressLog() {
 	} catch (error) {
 		state.keyPressLog = null;
 		state.keyPressLogError = `Firmware keylog fout: ${error.message}`;
-		logAction(`Firmware keylog fout: ${error.message}`);
 	} finally {
 		state.keyPressLogLoading = false;
+	}
+}
+
+async function fetchTextLog() {
+	state.textLogLoading = true;
+	state.textLogError = "";
+	try {
+		state.textLog = await fetchTextLogData();
+	} catch (error) {
+		state.textLog = null;
+		state.textLogError = `Firmware textlog fout: ${error.message}`;
+	} finally {
+		state.textLogLoading = false;
 	}
 }
 
@@ -248,12 +256,10 @@ async function loadMqttConfig() {
 		state.mqttConfigMessage = "Configuratie geladen";
 		applyMqttFormDirtyState(elements, false);
 		renderStatus();
-		logAction("MQTT configuratie geladen");
 	} catch (error) {
 		state.mqttConfigMessage = `MQTT fout: ${error.message}`;
 		applyMqttFormDirtyState(elements, false);
 		renderStatus();
-		logAction(`MQTT configuratie fout: ${error.message}`);
 	}
 }
 
@@ -261,11 +267,9 @@ async function readSettingsMenu() {
 	try {
 		const result = await fetchSettingsMenuData(state.status?.settingsMenuLastCompletedMs ?? 0);
 		state.status = result.status;
-		logAction(`Instellingen gelezen (${result.entries.length})`);
 		renderStatus();
 		renderSettings();
-	} catch (error) {
-		logAction(`Instellingen fout: ${error.message}`);
+	} catch {
 		renderSettings();
 	}
 }
@@ -273,12 +277,10 @@ async function readSettingsMenu() {
 async function startSensorsMenu() {
 	try {
 		state.sensorsPayload = await fetchSensorsMenuData(state.status?.sensorsMenuLastCompletedMs ?? 0);
-		logAction(`Sensoren gelezen (${state.sensorsPayload?.entries?.length ?? 0})`);
 		await fetchStatus();
 		renderStatus();
 		renderSensors();
-	} catch (error) {
-		logAction(`Sensoren fout: ${error.message}`);
+	} catch {
 		renderSensors();
 	}
 }
@@ -296,14 +298,8 @@ async function setValue() {
 		const displayText = result.displayText ? ` Huidige display: ${result.displayText}.` : "";
 		elements.setValueResult.textContent = result.message
 			?? (result.scheduled ? "Waarde verstuurd." : `Schrijfactie geweigerd.${displayText}`);
-		if (result.scheduled) {
-			logAction(`Waarde gezet: ${id}=${value}`);
-		} else {
-			logAction(`Set value geweigerd: ${result.reason ?? "unknown"}${displayText}`);
-		}
 	} catch (error) {
 		elements.setValueResult.textContent = error.message;
-		logAction(`Set value fout: ${error.message}`);
 	}
 }
 
@@ -324,12 +320,10 @@ async function saveMqttConfig() {
 		state.mqttConfigMessage = "MQTT configuratie opgeslagen";
 		applyMqttFormDirtyState(elements, false);
 		renderStatus();
-		logAction("MQTT configuratie opgeslagen");
 	} catch (error) {
 		state.mqttConfigMessage = `MQTT opslaan fout: ${error.message}`;
 		applyMqttFormDirtyState(elements, false);
 		renderStatus();
-		logAction(`MQTT opslaan fout: ${error.message}`);
 	}
 }
 
@@ -342,9 +336,7 @@ async function pressKey(keyMask, durationMs) {
 			await releaseLatchedKey();
 		}
 		await postKeyPress(keyMask, durationMs);
-		logAction(`Toets gestuurd: 0x${keyMask.toString(16)}${durationMs ? ` (${durationMs} ms)` : ""}`);
-	} catch (error) {
-		logAction(`Toets fout: ${error.message}`);
+	} catch {
 	}
 }
 
@@ -352,7 +344,6 @@ async function toggleLatchedKey(keyMask) {
 	try {
 		if (state.latchedKeyMask === keyMask) {
 			await releaseLatchedKey();
-			logAction(`Latch losgelaten: 0x${keyMask.toString(16)}`);
 			return;
 		}
 		if (state.latchedKeyMask !== 0) {
@@ -362,9 +353,7 @@ async function toggleLatchedKey(keyMask) {
 		state.latchedKeyMask = keyMask;
 		scheduleLatchedAutoRelease(keyMask);
 		renderStatus();
-		logAction(`Latch actief: 0x${keyMask.toString(16)}`);
-	} catch (error) {
-		logAction(`Latch fout: ${error.message}`);
+	} catch {
 	}
 }
 
@@ -383,9 +372,7 @@ function scheduleLatchedAutoRelease(keyMask) {
 		}
 		try {
 			await releaseLatchedKey();
-			logAction(`Latch timeout: 0x${keyMask.toString(16)}`);
-		} catch (error) {
-			logAction(`Latch timeout fout: ${error.message}`);
+		} catch {
 		}
 	}, DEFAULT_LATCH_MS);
 }
@@ -403,7 +390,7 @@ function setActiveTab(tab, updateHash = true) {
 	}
 	state.activeTab = tab;
 	if (tab === "logging") {
-		void fetchKeyPressLog().then(() => renderStatus());
+		void Promise.all([fetchTextLog(), fetchKeyPressLog()]).then(() => renderStatus());
 	}
 	if (updateHash) {
 		window.location.hash = tab;
@@ -430,14 +417,7 @@ function applyTheme() {
 }
 
 function logAction(message) {
-	state.logs.push({
-		time: formatClockTime(Date.now()),
-		message
-	});
-	if (state.logs.length > 400) {
-		state.logs = state.logs.slice(-400);
-	}
-	renderLogs();
+	void message;
 }
 
 async function loadParameterDefinitions() {
@@ -445,8 +425,6 @@ async function loadParameterDefinitions() {
 		state.parameterDefinitions = await fetchParameterDefinitionsData();
 		renderStatus();
 		renderSensors();
-		logAction(`Parameterdefinities geladen (${state.parameterDefinitions.length})`);
-	} catch (error) {
-		logAction(`Parameterdefinities fout: ${error.message}`);
+	} catch {
 	}
 }
