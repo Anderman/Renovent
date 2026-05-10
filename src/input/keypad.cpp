@@ -21,7 +21,7 @@ constexpr KeyNameEntry kKeyNameEntries[] = {
   {kKeyMinus, "minus"},
 };
 
-uint8_t keyMaskForSelectIndex(uint8_t selectIndex) {
+uint8_t getKeyMask(uint8_t selectIndex) {
   switch (selectIndex) {
     case 1:
       return kKeyOk;

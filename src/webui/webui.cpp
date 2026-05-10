@@ -83,7 +83,6 @@ bool tryServeFromSpiffs(const String &uri) {
 
 void handleStatus() {
   const DisplaySnapshot snapshot = getDisplaySnapshot();
-  const String activeKeys = activeKeysToString(snapshot.activeKeys);
   const Co2SensorStatus co2Status = getCo2SensorStatus();
   const SensorsMenuProgress sensorsMenuProgress = getSensorsMenuProgress();
   const AutoUpdateStatus &autoUpdateStatus = getAutoUpdateStatus();
@@ -108,7 +107,6 @@ void handleStatus() {
   doc["coreDumpBacktrace"] = resetInfoStatus.coreDumpBacktrace;
   doc["coreDumpBacktraceCorrupted"] = resetInfoStatus.coreDumpBacktraceCorrupted;
   doc["displayText"] = snapshot.text;
-  doc["activeKeys"] = activeKeys;
   doc["co2Connected"] = co2Status.connected;
   doc["co2Measuring"] = co2Status.measuring;
   doc["co2Valid"] = co2Status.dataValid;

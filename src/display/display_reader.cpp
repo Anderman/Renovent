@@ -4,8 +4,6 @@
 
 #include "display_codec.h"
 #include "display_segments.h"
-#include "../input/keypad.h"
-#include "../input/keypad_internal.h"
 #include "../input/key_writer_internal.h"
 #include "../hardware/pins.h"
 
@@ -26,8 +24,6 @@ namespace
     constexpr uint32_t kDigit2Mask = pinMask(pins::kDigit2);
     constexpr uint32_t kDigit3Mask = pinMask(pins::kDigit3);
     constexpr uint32_t kDigit4Mask = pinMask(pins::kDigit4);
-    constexpr uint32_t kKeyNodeMask = pinMask(pins::kKeyNode);
-
     // Select order from Docs/mappng.txt: A, C, B, DP, F, D, E, G.
     constexpr uint8_t kSelectToSegmentMask[8] = {
         display_segments::kSegmentA,
@@ -51,33 +47,14 @@ namespace
     FrameState g_isrWorkingFrame;
     FrameState g_lastCompletedFrame;
     FrameState g_readyFrame;
-    DisplaySnapshot g_snapshot = {kKeyNone, "----"};
+    DisplaySnapshot g_snapshot = {"----"};
     uint8_t g_snapshotDigitMasks[4] = {0, 0, 0, 0};
     volatile bool g_frameReadyPending = false;
-    volatile uint8_t g_isrWorkingKeys = kKeyNone;
-    volatile uint8_t g_readyKeys = kKeyNone;
     volatile uint8_t g_isrLastSelectIndex = 0;
     volatile uint32_t g_completeFrameCount = 0;
     volatile uint32_t g_missedSelectFrameCount = 0;
     uint32_t g_publishedFrameCount = 0;
     uint32_t g_lastStatsLogMs = 0;
-
-    uint8_t keyMaskForSelectIndex(uint8_t selectIndex)
-    {
-        switch (selectIndex)
-        {
-        case 1:
-            return kKeyOk;
-        case 3:
-            return kKeyFunction;
-        case 5:
-            return kKeyMinus;
-        case 6:
-            return kKeyPlus;
-        default:
-            return kKeyNone;
-        }
-    }
 
     uint8_t IRAM_ATTR readSelectIndex(uint32_t gpioSnapshot)
     {
@@ -92,8 +69,6 @@ namespace
         {
             g_isrWorkingFrame.digitMasks[digitIndex] = 0;
         }
-
-        g_isrWorkingKeys = kKeyNone;
     }
 
     bool isEqual(const FrameState &left, const FrameState &right)
@@ -109,7 +84,7 @@ namespace
         return true;
     }
 
-    void publishFrame(const FrameState &frame, uint8_t activeKeys)
+    void publishFrame(const FrameState &frame)
     {
         portENTER_CRITICAL(&g_displayMux);
         renderDisplayText(frame.digitMasks, g_snapshot.text);
@@ -121,7 +96,6 @@ namespace
 
         keyWriterOnDisplayChangedHook(g_snapshot.text);
         g_publishedFrameCount = g_publishedFrameCount + 1U;
-        keypadPublishActiveKeysHook(activeKeys);
     }
 
     uint8_t toMissedSelectPercent(uint32_t completeFrames, uint32_t missedFrames)
@@ -158,7 +132,7 @@ namespace
                       static_cast<unsigned long>(g_publishedFrameCount));
     }
 
-    void publishIfStableFrame(const FrameState &frame, uint8_t activeKeys)
+    void publishIfStableFrame(const FrameState &frame)
     {
         if (!isEqual(frame, g_lastCompletedFrame))
         {
@@ -167,7 +141,7 @@ namespace
         }
 
         g_lastCompletedFrame = frame;
-        publishFrame(frame, activeKeys);
+        publishFrame(frame);
     }
 
     void IRAM_ATTR applySampleFromSnapshot(uint8_t selectIndex, uint32_t gpioSnapshot)
@@ -191,17 +165,12 @@ namespace
             g_isrWorkingFrame.digitMasks[3] |= segmentMask;
         }
 
-        if ((gpioSnapshot & kKeyNodeMask) == 0U)
-        {
-            g_isrWorkingKeys = static_cast<uint8_t>(g_isrWorkingKeys | keyMaskForSelectIndex(selectIndex));
-        }
     }
 
     void IRAM_ATTR latchReadyFrame()
     {
         portENTER_CRITICAL_ISR(&g_frameReadyMux);
         g_readyFrame = g_isrWorkingFrame;
-        g_readyKeys = g_isrWorkingKeys;
         g_frameReadyPending = true;
         portEXIT_CRITICAL_ISR(&g_frameReadyMux);
     }
@@ -243,7 +212,6 @@ void displayReaderSetup()
     pinMode(pins::kDigit2, INPUT);
     pinMode(pins::kDigit3, INPUT);
     pinMode(pins::kDigit4, INPUT);
-    keypadSetup();
     clearIsrWorkingFrame();
     attachInterrupt(digitalPinToInterrupt(pins::kBit0), onBit0ChangeInterrupt, CHANGE);
 }
@@ -259,11 +227,10 @@ void displayReaderLoop()
 
     portENTER_CRITICAL(&g_frameReadyMux);
     FrameState frame = g_readyFrame;
-    uint8_t activeKeys = g_readyKeys;
     g_frameReadyPending = false;
     portEXIT_CRITICAL(&g_frameReadyMux);
 
-    publishIfStableFrame(frame, activeKeys);
+    publishIfStableFrame(frame);
 }
 
 DisplaySnapshot getDisplaySnapshot()
@@ -272,6 +239,5 @@ DisplaySnapshot getDisplaySnapshot()
     portENTER_CRITICAL(&g_displayMux);
     snapshot = g_snapshot;
     portEXIT_CRITICAL(&g_displayMux);
-    snapshot.activeKeys = keypadGetActiveKeys();
     return snapshot;
 }

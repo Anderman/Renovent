@@ -1,19 +1,16 @@
 #include "input/key_writer.h"
 
+#include "input/key_writer_log.h"
 #include "input/key_writer_internal.h"
-
-#include <cstring>
 
 #include <soc/gpio_struct.h>
 
-#include "input/keypad.h"
 #include "../hardware/pins.h"
 
 namespace
 {
   constexpr uint8_t kUpperBankBasePin = 32;
   constexpr uint32_t kKeyDownMask = 1UL << static_cast<uint32_t>(pins::kKeyDown - kUpperBankBasePin);
-  constexpr uint16_t kMaxLogEntries = 400;
 
   portMUX_TYPE g_keyWriterMux = portMUX_INITIALIZER_UNLOCKED;
   volatile uint8_t g_injectedKeys = kKeyNone;
@@ -21,12 +18,8 @@ namespace
   uint32_t g_autoReleaseDeadlineMs = 0;
   uint32_t g_cycleStartedMs = 0;
   uint32_t g_releaseStartedMs = 0;
-  KeyPressLogEntry g_logEntries[kMaxLogEntries] = {};
-  uint16_t g_logNextIndex = 0;
-  uint16_t g_logCount = 0;
-  char g_lastDisplayText[9] = {0};
 
-  uint8_t keyMaskForSelectIndex(uint8_t selectIndex)
+  uint8_t getKeyMask(uint8_t selectIndex)
   {
     switch (selectIndex)
     {
@@ -50,27 +43,8 @@ namespace
 
   bool isKeyPhaseActive(uint8_t injectedKeys, uint8_t selectIndex)
   {
-    const uint8_t selectKeyMask = keyMaskForSelectIndex(selectIndex);
+    const uint8_t selectKeyMask = getKeyMask(selectIndex);
     return selectKeyMask != kKeyNone && (injectedKeys & selectKeyMask) != 0U;
-  }
-
-  void copyKeyText(char (&destination)[24], uint8_t mask)
-  {
-    const String text = activeKeysToString(mask);
-    std::strncpy(destination, text.c_str(), sizeof(destination) - 1);
-    destination[sizeof(destination) - 1] = '\0';
-  }
-
-  void copyDisplayText(char (&destination)[9], const char *source)
-  {
-    if (source == nullptr)
-    {
-      destination[0] = '\0';
-      return;
-    }
-
-    std::strncpy(destination, source, sizeof(destination) - 1);
-    destination[sizeof(destination) - 1] = '\0';
   }
 
   uint32_t relativeMsFor(uint32_t now)
@@ -91,31 +65,6 @@ namespace
     }
 
     return static_cast<uint32_t>(now - g_releaseStartedMs);
-  }
-
-  void appendLogEntry(const char *eventName,
-                      uint8_t mask,
-                      uint32_t relativeMs,
-                      uint32_t idleBeforeMs,
-                      uint32_t releaseForMs,
-                      const char *displayText)
-  {
-    KeyPressLogEntry &entry = g_logEntries[g_logNextIndex];
-    entry.available = true;
-    std::strncpy(entry.event, eventName, sizeof(entry.event) - 1);
-    entry.event[sizeof(entry.event) - 1] = '\0';
-    entry.mask = mask;
-    entry.relativeMs = relativeMs;
-    entry.idleBeforeMs = idleBeforeMs;
-    entry.releaseForMs = releaseForMs;
-    copyKeyText(entry.keys, mask);
-    copyDisplayText(entry.display, displayText);
-
-    g_logNextIndex = static_cast<uint16_t>((g_logNextIndex + 1U) % kMaxLogEntries);
-    if (g_logCount < kMaxLogEntries)
-    {
-      ++g_logCount;
-    }
   }
 } // namespace
 
@@ -162,7 +111,7 @@ void pressKeys(uint8_t activeKeys)
 
   if (g_loggedActiveMask != kKeyNone)
   {
-    appendLogEntry("release", g_loggedActiveMask, relativeMsFor(now), 0, 0, g_lastDisplayText);
+    keyWriterLogRelease(g_loggedActiveMask, relativeMsFor(now));
     g_loggedActiveMask = kKeyNone;
     g_releaseStartedMs = now;
   }
@@ -173,7 +122,7 @@ void pressKeys(uint8_t activeKeys)
     g_cycleStartedMs = now;
     g_loggedActiveMask = activeKeys;
     g_releaseStartedMs = 0;
-    appendLogEntry("press", activeKeys, 0, idleBeforeMs, 0, g_lastDisplayText);
+    keyWriterLogPress(activeKeys, idleBeforeMs);
   }
 
   g_injectedKeys = activeKeys;
@@ -213,19 +162,10 @@ void keyWriterOnDisplayChangedHook(const char *displayText)
   const uint32_t now = millis();
 
   portENTER_CRITICAL(&g_keyWriterMux);
-  if (displayText == nullptr || std::strncmp(g_lastDisplayText, displayText, sizeof(g_lastDisplayText)) == 0)
-  {
-    portEXIT_CRITICAL(&g_keyWriterMux);
-    return;
-  }
-
-  copyDisplayText(g_lastDisplayText, displayText);
-  appendLogEntry("display",
-                 g_loggedActiveMask,
-                 relativeMsFor(now),
-                 0,
-                 currentReleaseForMs(now),
-                 g_lastDisplayText);
+  keyWriterLogDisplayChanged(g_loggedActiveMask,
+                             relativeMsFor(now),
+                             currentReleaseForMs(now),
+                             displayText);
   portEXIT_CRITICAL(&g_keyWriterMux);
 }
 
@@ -238,12 +178,7 @@ uint16_t copyKeyPressLogEntries(KeyPressLogEntry *entries, uint16_t maxEntries)
 
   uint16_t copiedCount = 0;
   portENTER_CRITICAL(&g_keyWriterMux);
-  copiedCount = g_logCount < maxEntries ? g_logCount : maxEntries;
-  for (uint16_t index = 0; index < copiedCount; ++index)
-  {
-    const uint16_t sourceIndex = static_cast<uint16_t>((g_logNextIndex + kMaxLogEntries - 1U - index) % kMaxLogEntries);
-    entries[index] = g_logEntries[sourceIndex];
-  }
+  copiedCount = keyWriterLogCopyEntries(entries, maxEntries);
   portEXIT_CRITICAL(&g_keyWriterMux);
 
   return copiedCount;

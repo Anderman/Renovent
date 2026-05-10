@@ -138,7 +138,6 @@ export function mapStatusSnapshot(status) {
 			["Firmware", status.firmwareBuildId ?? "--"],
 			["SPIFFS", status.spiffsBuildId ?? "--"],
 			["RSSI", status.rssi !== undefined ? `${status.rssi} dBm` : "--"],
-			["Actieve toets", status.activeKeys ?? "--"],
 			["Laatste OTA check", lastCheckText],
 			["OTA fout", status.autoUpdateLastError || "--"],
 			["Core dump", coreDumpText],
