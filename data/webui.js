@@ -434,8 +434,8 @@ function logAction(message) {
 		time: formatClockTime(Date.now()),
 		message
 	});
-	if (state.logs.length > 100) {
-		state.logs = state.logs.slice(-100);
+	if (state.logs.length > 400) {
+		state.logs = state.logs.slice(-400);
 	}
 	renderLogs();
 }

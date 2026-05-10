@@ -4,7 +4,7 @@
 
 namespace
 {
-    void compactSettingDisplayText(char (&destination)[9], const char *source)
+    void compactSettingText(char (&destination)[9], const char *source)
     {
         if (source == nullptr)
         {
@@ -21,83 +21,34 @@ namespace
                 continue;
             }
 
-            destination[writeIndex++] = current == ',' ? '.' : current;
+            destination[writeIndex++] = current;
         }
 
         destination[writeIndex] = '\0';
     }
 
-    bool normalizeNumericDisplayValue(char (&destination)[9], const char *source)
+    bool parseSettingValue(const char *source, ParsedSettingValue &value)
     {
-        if (source == nullptr || source[0] == '\0')
+        value = ParsedSettingValue{};
+
+        char compactValue[9] = {0};
+        if (!tryGetCompactSettingText(source, compactValue))
         {
-            destination[0] = '\0';
             return false;
         }
 
-        const size_t sourceLength = std::strlen(source);
-        bool negative = false;
-        bool sawDigit = false;
-        bool sawDecimalSeparator = false;
-        uint8_t writeIndex = 0;
-
-        if (source[sourceLength - 1U] == '.')
+        int32_t numericValue = 0;
+        if (tryGetNumericValue(compactValue, numericValue))
         {
-            negative = true;
-        }
-
-        for (size_t index = 0; index < sourceLength && writeIndex < sizeof(destination) - 1U; ++index)
-        {
-            const char current = source[index];
-
-            if (current == '-')
-            {
-                negative = true;
-                continue;
-            }
-
-            if (current >= '0' && current <= '9')
-            {
-                destination[writeIndex++] = current;
-                sawDigit = true;
-                continue;
-            }
-
-            if (current == '.' && index != sourceLength - 1U && !sawDecimalSeparator)
-            {
-                if (writeIndex == 0)
-                {
-                    destination[writeIndex++] = '0';
-                }
-
-                destination[writeIndex++] = '.';
-                sawDecimalSeparator = true;
-            }
-        }
-
-        if (!sawDigit)
-        {
-            destination[0] = '\0';
-            return false;
-        }
-
-        destination[writeIndex] = '\0';
-
-        if (!negative)
-        {
+            value.isValid = true;
+            value.hasNumericValue = true;
+            value.numericValue = numericValue;
             return true;
         }
 
-        if (writeIndex >= sizeof(destination) - 1U)
-        {
-            return false;
-        }
-
-        for (int8_t index = static_cast<int8_t>(writeIndex); index >= 0; --index)
-        {
-            destination[index + 1] = destination[index];
-        }
-        destination[0] = '-';
+        value.isValid = true;
+        copyDisplayText(value.displayValue, compactValue);
+        value.hasNumericValue = false;
         return true;
     }
 }
@@ -106,6 +57,12 @@ void copyDisplayText(char (&destination)[9], const char *source)
 {
     std::strncpy(destination, source, sizeof(destination) - 1);
     destination[sizeof(destination) - 1] = '\0';
+}
+
+bool tryGetCompactSettingText(const char *source, char (&value)[9])
+{
+    compactSettingText(value, source);
+    return value[0] != '\0';
 }
 
 bool isStartDisplay(const char *displayText)
@@ -162,7 +119,7 @@ bool startsWithDisplay(const char *actual, const char *expectedPrefix)
 // 5.   -> -5
 // -10.5. -> -105
 // - 1.5. -> -15
-bool getNumericValue(const char *rawValue, int32_t &value)
+bool tryGetNumericValue(const char *rawValue, int32_t &value)
 {
     if (rawValue == nullptr)
     {
@@ -186,11 +143,6 @@ bool getNumericValue(const char *rawValue, int32_t &value)
         {
             token[tokenLength++] = current;
         }
-    }
-
-    if (tokenLength == 0)
-    {
-        return false;
     }
 
     int32_t parsedValue = 0;
@@ -217,10 +169,10 @@ bool getNumericValue(const char *rawValue, int32_t &value)
     return true;
 }
 
-bool parseSensorEntry(const char *displayText, ParsedSensorEntry &parsedEntry)
+bool tryParseSensorEntry(const char *displayText, ParsedSensorEntry &parsedEntry)
 {
     parsedEntry = ParsedSensorEntry{};
-    if (!getSensorKey(displayText, parsedEntry.key, parsedEntry.valueText))
+    if (!tryGetSensorKey(displayText, parsedEntry.key, parsedEntry.valueText))
     {
         return false;
     }
@@ -230,11 +182,11 @@ bool parseSensorEntry(const char *displayText, ParsedSensorEntry &parsedEntry)
         return false;
     }
 
-    parsedEntry.hasValue = getNumericValue(parsedEntry.valueText, parsedEntry.value);
+    parsedEntry.hasValue = tryGetNumericValue(parsedEntry.valueText, parsedEntry.value);
     return true;
 }
 
-bool getSensorKey(const char *displayText, char (&key)[4], const char *&valueStart)
+bool tryGetSensorKey(const char *displayText, char (&key)[4], const char *&valueStart)
 {
     if (displayText == nullptr)
     {
@@ -265,13 +217,14 @@ bool getSensorKey(const char *displayText, char (&key)[4], const char *&valueSta
             break;
         }
 
-        if (current >= 'a' && current <= 'z')
+        const char upper = static_cast<char>(current & 0xDF);
+        if (upper >= 'A' && upper <= 'Z')
         {
-            key[writeIndex++] = static_cast<char>(current - 'a' + 'A');
+            key[writeIndex++] = upper;
             continue;
         }
 
-        if ((current >= 'A' && current <= 'Z') || (current >= '0' && current <= '9'))
+        if (current >= '0' && current <= '9')
         {
             key[writeIndex++] = current;
             continue;
@@ -291,13 +244,13 @@ bool getSensorKey(const char *displayText, char (&key)[4], const char *&valueSta
     return writeIndex > 0U;
 }
 
-bool getSensorKey(const char *displayText, char (&key)[4])
+bool tryGetSensorKey(const char *displayText, char (&key)[4])
 {
     const char *valueStart = nullptr;
-    return getSensorKey(displayText, key, valueStart);
+    return tryGetSensorKey(displayText, key, valueStart);
 }
 
-bool getSettingKey(const char *displayText, char (&key)[4])
+bool tryGetSettingKey(const char *displayText, char (&key)[4])
 {
     if (displayText == nullptr)
     {
@@ -319,34 +272,13 @@ bool getSettingKey(const char *displayText, char (&key)[4])
     return writeIndex > 0U;
 }
 
-bool getSettingValue(const char *displayText, ParsedSettingValue &value)
+bool tryGetDisplaySettingValue(const char *displayText, ParsedSettingValue &value)
 {
-    value = ParsedSettingValue{};
+    return parseSettingValue(displayText, value);
+    
+}
 
-    char compactDisplayValue[9] = {0};
-    compactSettingDisplayText(compactDisplayValue, displayText);
-
-    if (compactDisplayValue[0] == '\0')
-    {
-        return false;
-    }
-
-    int32_t numericValue = 0;
-    if (getNumericValue(compactDisplayValue, numericValue))
-    {
-        if (!normalizeNumericDisplayValue(value.displayValue, compactDisplayValue))
-        {
-            return false;
-        }
-
-        value.isValid = true;
-        value.hasNumericValue = true;
-        value.numericValue = numericValue;
-        return true;
-    }
-
-    copyDisplayText(value.displayValue, compactDisplayValue);
-    value.isValid = true;
-    value.hasNumericValue = false;
-    return true;
+bool tryGetInputSettingValue(const char *inputText, ParsedSettingValue &value)
+{
+    return parseSettingValue(inputText, value);
 }

@@ -159,7 +159,7 @@ namespace
     bool setCurrentEntryKey(const char *displayText)
     {
         char parsedKey[4] = {0};
-        if (!getSettingKey(displayText, parsedKey))
+        if (!tryGetSettingKey(displayText, parsedKey))
         {
             return false;
         }
@@ -195,7 +195,7 @@ namespace
 
         SettingValue &entry = g_state.values[static_cast<uint8_t>(entryIndex)];
         ParsedSettingValue settingValue{};
-        if (!getSettingValue(displayText, settingValue))
+        if (!tryGetDisplaySettingValue(displayText, settingValue))
         {
             return false;
         }
@@ -203,7 +203,10 @@ namespace
         entry.available = true;
         std::strncpy(entry.key, g_state.currentEntryKey, sizeof(entry.key) - 1);
         entry.key[sizeof(entry.key) - 1] = '\0';
-        copyDisplayText(entry.rawValue, settingValue.displayValue);
+        if (!tryGetCompactSettingText(displayText, entry.rawValue))
+        {
+            return false;
+        }
         entry.hasValue = settingValue.hasNumericValue;
         entry.value = settingValue.hasNumericValue ? settingValue.numericValue : 0;
         return true;
@@ -316,7 +319,7 @@ namespace
         case SettingsAction::SelectNextEntry:
         {
             char parsedKey[4] = {0};
-            if (!getSettingKey(snapshot.text, parsedKey))
+            if (!tryGetSettingKey(snapshot.text, parsedKey))
             {
                 return SettingStepResult::Pending;
             }
@@ -445,7 +448,7 @@ void updateSettingsMenuValueFromWrite(const char *key, const char *rawValue)
 
     SettingValue &entry = g_lastCompletedValues[static_cast<uint8_t>(entryIndex)];
     ParsedSettingValue settingValue{};
-    if (!getSettingValue(rawValue, settingValue))
+    if (!tryGetInputSettingValue(rawValue, settingValue))
     {
         return;
     }
@@ -453,7 +456,10 @@ void updateSettingsMenuValueFromWrite(const char *key, const char *rawValue)
     entry.available = true;
     std::strncpy(entry.key, key, sizeof(entry.key) - 1);
     entry.key[sizeof(entry.key) - 1] = '\0';
-    copyDisplayText(entry.rawValue, settingValue.displayValue);
+    if (!tryGetCompactSettingText(rawValue, entry.rawValue))
+    {
+        return;
+    }
     entry.hasValue = settingValue.hasNumericValue;
     entry.value = settingValue.hasNumericValue ? settingValue.numericValue : 0;
     g_lastCompletedMs = millis();

@@ -5,6 +5,13 @@ export function buildLoggingPanel() {
 		<div class="advanced-grid">
 			<section class="panel wide">
 				<header>
+					<h2>UI textlog</h2>
+					<span class="note">Laatste 400 regels uit de webinterface</span>
+				</header>
+				<div id="text-log-output" class="text-log-output"></div>
+			</section>
+			<section class="panel wide">
+				<header>
 					<h2>Firmware keylog</h2>
 					<span class="note">Via aparte /api/key-press-log call</span>
 				</header>
@@ -14,10 +21,30 @@ export function buildLoggingPanel() {
 }
 
 export function collectLoggingElements(elements) {
+	elements.textLogOutput = document.getElementById("text-log-output");
 	elements.firmwareLogOutput = document.getElementById("firmware-log-output");
 }
 
 export function renderLoggingPanel(elements, state) {
+	renderTextLog(elements, state.logs);
+	renderFirmwareLog(elements, state);
+}
+
+export function renderTextLog(elements, logs) {
+	const textLogs = Array.isArray(logs) ? logs : [];
+	elements.textLogOutput.innerHTML = textLogs.length
+		? `
+			<div class="note">${escapeHtml(`${textLogs.length} regels in UI textlog`)}</div>
+			<div class="text-log-viewer">${textLogs.map((entry) => `
+				<div class="text-log-line">
+					<span class="text-log-time">${escapeHtml(entry.time ?? "--:--:--")}</span>
+					<span class="text-log-message">${escapeHtml(entry.message ?? "")}</span>
+				</div>`).join("")}
+			</div>`
+		: `<div class="note">Nog geen UI logregels beschikbaar.</div>`;
+}
+
+function renderFirmwareLog(elements, state) {
 	if (state.keyPressLogLoading) {
 		elements.firmwareLogOutput.innerHTML = `<div class="note">Firmware keylog laden...</div>`;
 		return;

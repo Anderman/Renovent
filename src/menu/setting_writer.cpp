@@ -66,14 +66,18 @@ namespace setting_writer_internal
     }
 
     ParsedSettingValue settingValue{};
-    if (!getSettingValue(displayValue, settingValue))
+    if (!tryGetInputSettingValue(displayValue, settingValue))
     {
       return SettingWriteStatus::InvalidKey;
     }
 
     request.targetHasNumericValue = hasNumericValue && settingValue.hasNumericValue;
     request.targetValue = request.targetHasNumericValue ? numericValue : 0;
-    copyDisplayText(request.targetDisplayValue, settingValue.displayValue);
+    request.targetDisplayValue[0] = '\0';
+    if (!request.targetHasNumericValue && !tryGetCompactSettingText(displayValue, request.targetDisplayValue))
+    {
+      return SettingWriteStatus::InvalidKey;
+    }
 
     g_state = SettingWriterState{};
     g_state.running = true;
@@ -179,7 +183,7 @@ SettingWriteStatus writeSetting(const char *haKey, const char *displayValue)
   }
 
   ParsedSettingValue settingValue{};
-  if (!getSettingValue(displayValue, settingValue))
+  if (!tryGetInputSettingValue(displayValue, settingValue))
   {
     return SettingWriteStatus::InvalidKey;
   }

@@ -222,7 +222,7 @@ bool captureCurrentEntry(const char *displayText, const ParsedSensorEntry &parse
 bool captureCurrentEntry(const char *displayText)
 {
     ParsedSensorEntry parsedEntry{};
-    if (!parseSensorEntry(displayText, parsedEntry))
+    if (!tryParseSensorEntry(displayText, parsedEntry))
     {
         return false;
     }

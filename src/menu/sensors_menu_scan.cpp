@@ -132,12 +132,12 @@ namespace sensors_menu_internal
         if (g_scanState.currentScriptIndex == kNextEntryStepIndex)
         {
             ParsedSensorEntry parsedEntry{};
-            if (!parseSensorEntry(snapshot.text, parsedEntry))
+            if (!tryParseSensorEntry(snapshot.text, parsedEntry))
             {
                 abortIfStepTimedOut(now);
                 return;
             }
-            const boolean keyNotChanged = std::strncmp(parsedEntry.key, g_scanState.currentEntryKey, sizeof(parsedEntry.key)) != 0;
+            const boolean keyNotChanged = std::strncmp(parsedEntry.key, g_scanState.currentEntryKey, sizeof(parsedEntry.key)) == 0;
             if (keyNotChanged)
             {
                 abortIfStepTimedOut(now);

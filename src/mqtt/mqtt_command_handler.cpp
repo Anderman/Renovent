@@ -4,7 +4,6 @@
 
 #include <cstdlib>
 #include <cstring>
-#include <cctype>
 #include <cmath>
 
 namespace
@@ -54,33 +53,6 @@ namespace
       g_commandQueue[index] = filteredQueue[index];
     }
     g_commandQueueCount = filteredCount;
-  }
-
-  bool parseIntegerPayload(const char *payload, int32_t &value)
-  {
-    if (payload == nullptr || payload[0] == '\0')
-    {
-      return false;
-    }
-
-    char *end = nullptr;
-    const long parsed = std::strtol(payload, &end, 10);
-    if (end == payload)
-    {
-      return false;
-    }
-
-    while (end != nullptr && *end != '\0')
-    {
-      if (!std::isspace(static_cast<unsigned char>(*end)))
-      {
-        return false;
-      }
-      ++end;
-    }
-
-    value = static_cast<int32_t>(parsed);
-    return true;
   }
 
   int32_t numberScaleFactor(const HaEntityDefinition &definition)
@@ -190,12 +162,6 @@ bool tryParseNumber(const HaEntityDefinition &definition, const char *payload, i
     return false;
   }
 
-  const int32_t scaleFactor = numberScaleFactor(definition);
-  if (scaleFactor == 1)
-  {
-    return parseIntegerPayload(payload, value);
-  }
-
   char *end = nullptr;
   const double parsed = std::strtod(payload, &end);
   if (end == payload)
@@ -203,15 +169,7 @@ bool tryParseNumber(const HaEntityDefinition &definition, const char *payload, i
     return false;
   }
 
-  while (end != nullptr && *end != '\0')
-  {
-    if (!std::isspace(static_cast<unsigned char>(*end)))
-    {
-      return false;
-    }
-    ++end;
-  }
-
+  const int32_t scaleFactor = numberScaleFactor(definition);
   value = static_cast<int32_t>(std::lround(parsed * static_cast<double>(scaleFactor)));
   return true;
 }

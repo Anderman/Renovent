@@ -848,6 +848,45 @@ button#read-settings-menu:hover {
 	background: rgba(51, 124, 173, 0.12);
 }
 
+.text-log-output {
+	display: grid;
+	gap: 10px;
+}
+
+.text-log-viewer {
+	max-height: 70vh;
+	overflow: auto;
+	padding: 12px 14px;
+	border: 1px solid var(--line);
+	border-radius: 18px;
+	background: rgba(15, 23, 19, 0.04);
+	font-family: "Consolas", "SFMono-Regular", "Liberation Mono", monospace;
+	font-size: 0.88rem;
+	line-height: 1.45;
+}
+
+.text-log-line {
+	display: grid;
+	grid-template-columns: 84px 1fr;
+	gap: 12px;
+	padding: 3px 0;
+	border-bottom: 1px solid rgba(128, 128, 128, 0.12);
+}
+
+.text-log-line:last-child {
+	border-bottom: none;
+}
+
+.text-log-time {
+	color: var(--muted);
+	white-space: nowrap;
+}
+
+.text-log-message {
+	color: var(--text);
+	word-break: break-word;
+}
+
 :root[data-theme="dark"] .firmware-log-row.event-press td {
 	background: rgba(63, 180, 132, 0.14);
 }
@@ -862,6 +901,10 @@ button#read-settings-menu:hover {
 
 :root[data-theme="dark"] .firmware-log-row.event-other td {
 	background: rgba(88, 166, 255, 0.12);
+}
+
+:root[data-theme="dark"] .text-log-viewer {
+	background: rgba(255, 255, 255, 0.03);
 }
 
 .tab-panel {

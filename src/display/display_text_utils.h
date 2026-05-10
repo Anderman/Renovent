@@ -19,11 +19,13 @@ struct ParsedSensorEntry
 };
 
 void copyDisplayText(char (&destination)[9], const char *source);
+bool tryGetCompactSettingText(const char *source, char (&value)[9]);
 bool isStartDisplay(const char *displayText);
 bool startsWithDisplay(const char *actual, const char *expectedPrefix);
-bool getNumericValue(const char *rawValue, int32_t &value);
-bool parseSensorEntry(const char *displayText, ParsedSensorEntry &parsedEntry);
-bool getSensorKey(const char *displayText, char (&key)[4], const char *&valueStart);
-bool getSensorKey(const char *displayText, char (&key)[4]);
-bool getSettingKey(const char *displayText, char (&key)[4]);
-bool getSettingValue(const char *displayText, ParsedSettingValue &value);
+bool tryGetNumericValue(const char *rawValue, int32_t &value);
+bool tryParseSensorEntry(const char *displayText, ParsedSensorEntry &parsedEntry);
+bool tryGetSensorKey(const char *displayText, char (&key)[4], const char *&valueStart);
+bool tryGetSensorKey(const char *displayText, char (&key)[4]);
+bool tryGetSettingKey(const char *displayText, char (&key)[4]);
+bool tryGetDisplaySettingValue(const char *displayText, ParsedSettingValue &value);
+bool tryGetInputSettingValue(const char *inputText, ParsedSettingValue &value);

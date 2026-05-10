@@ -6,6 +6,7 @@
 #include "core/app_config.h"
 #include "display/display_reader.h"
 #include "display/display_text_utils.h"
+#include <cstdio>
 
 namespace setting_writer_internal
 {
@@ -37,7 +38,7 @@ namespace setting_writer_internal
         bool readCurrentSettingValue(uint32_t now, ParsedSettingValue &settingValue)
         {
             const DisplaySnapshot snapshot = getDisplaySnapshot();
-            if (!getSettingValue(snapshot.text, settingValue))
+            if (!tryGetDisplaySettingValue(snapshot.text, settingValue))
             {
                 updateInvalidDisplayTimer(now);
                 return false;
@@ -68,9 +69,7 @@ namespace setting_writer_internal
                 return false;
             }
 
-            matchesTarget = std::strncmp(currentSettingValue.displayValue,
-                                         g_state.request.targetDisplayValue,
-                                         sizeof(g_state.request.targetDisplayValue)) == 0;
+            matchesTarget = std::strncmp(currentSettingValue.displayValue, g_state.request.targetDisplayValue, sizeof(g_state.request.targetDisplayValue)) == 0;
             return true;
         }
 
@@ -150,7 +149,7 @@ namespace setting_writer_internal
                 copyDisplayText(g_state.displayBeforeKeyPress, snapshot.text);
 
                 char displayedKey[4] = {0};
-                if (getSettingKey(snapshot.text, displayedKey) && std::strncmp(displayedKey, g_state.request.key, sizeof(displayedKey)) == 0)
+                if (tryGetSettingKey(snapshot.text, displayedKey) && std::strncmp(displayedKey, g_state.request.key, sizeof(displayedKey)) == 0)
                 {
                     g_state.invalidDisplayStartedMs = 0;
                     advanceToNextStep();
@@ -183,7 +182,7 @@ namespace setting_writer_internal
             }
 
             char displayedKey[4] = {0};
-            if (!getSettingKey(snapshot.text, displayedKey))
+            if (!tryGetSettingKey(snapshot.text, displayedKey))
             {
                 updateInvalidDisplayTimer(now);
                 return;
@@ -286,7 +285,8 @@ namespace setting_writer_internal
                 {
                     releaseKeys(now);
                     g_state.adjustTimedOut = true;
-                    g_state.request.targetValue = currentValue;
+                    const DisplaySnapshot snapshot = getDisplaySnapshot();
+                    tryGetCompactSettingText(snapshot.text, g_state.request.targetDisplayValue);
                     return;
                 }
 
