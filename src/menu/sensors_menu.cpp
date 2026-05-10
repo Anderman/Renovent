@@ -60,17 +60,8 @@ namespace sensors_menu_internal
     SensorsMenuState g_scanState;
     SensorsMenuCapturedEntry g_lastCompletedEntries[kSensorsStepCount] = {};
     SensorsMenuUnknownEntry g_lastCompletedUnknownEntries[kMaxUnknownSensors] = {};
-    char g_lastCompletedDisplayText[9] = {0};
     uint32_t g_lastCompletedMs = 0;
     uint32_t g_lastScanStartedMs = 0;
-
-    bool isValidSensorsStartDisplay(const char *displayText)
-    {
-        return startsWithDisplay(displayText, "0.") ||
-               startsWithDisplay(displayText, "1.") ||
-               startsWithDisplay(displayText, "2.") ||
-               startsWithDisplay(displayText, "3.");
-    }
 
 } // namespace sensors_menu_internal
 
@@ -91,7 +82,7 @@ bool canStartSensorsMenu()
     }
 
     const DisplaySnapshot snapshot = getDisplaySnapshot();
-    return isValidSensorsStartDisplay(snapshot.text);
+    return isStartDisplay(snapshot.text);
 }
 
 void sensorsMenuSetup()
@@ -134,10 +125,6 @@ SensorsMenuProgress getSensorsMenuProgress()
     progress.running = g_scanState.running;
     progress.currentStep = g_scanState.currentStep;
     progress.lastCompletedMs = g_lastCompletedMs;
-    std::strncpy(progress.phase, currentPhaseName(), sizeof(progress.phase) - 1);
-    progress.phase[sizeof(progress.phase) - 1] = '\0';
-    copyDisplayText(progress.lastDisplayText,
-                    g_scanState.running ? g_scanState.lastDisplayText : g_lastCompletedDisplayText);
     portEXIT_CRITICAL(&g_menuMux);
 
     return progress;

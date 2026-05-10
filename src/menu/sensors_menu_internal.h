@@ -2,6 +2,7 @@
 
 #include <Arduino.h>
 
+#include "display/display_text_utils.h"
 #include "menu/sensors_menu.h"
 
 namespace sensors_menu_internal {
@@ -21,7 +22,6 @@ struct SensorsMenuState
     uint32_t phaseStartedMs = 0;
     bool stepStarted = false;
     bool keysReleased = false;
-    char lastDisplayText[9] = {0};
     char firstEntryKey[4] = {0};
     char currentEntryKey[4] = {0};
     SensorsMenuCapturedEntry entries[kSensorsStepCount] = {};
@@ -32,13 +32,10 @@ extern portMUX_TYPE g_menuMux;
 extern SensorsMenuState g_scanState;
 extern SensorsMenuCapturedEntry g_lastCompletedEntries[kSensorsStepCount];
 extern SensorsMenuUnknownEntry g_lastCompletedUnknownEntries[kMaxUnknownSensors];
-extern char g_lastCompletedDisplayText[9];
 extern uint32_t g_lastCompletedMs;
 extern uint32_t g_lastScanStartedMs;
 
-bool isValidSensorsStartDisplay(const char *displayText);
-const char *currentPhaseName();
-bool parseSensorEntryKey(const char *displayText, char (&key)[4]);
+bool captureCurrentEntry(const char *displayText, const ParsedSensorEntry &parsedEntry);
 bool captureCurrentEntry(const char *displayText);
 void buildLogicalValues(const SensorsMenuCapturedEntry (&entries)[kSensorsStepCount], SensorsMenuValueItem (&values)[kLogicalValueCount]);
 void runCurrentStep(uint32_t now);

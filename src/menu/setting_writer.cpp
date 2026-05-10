@@ -35,14 +35,6 @@ namespace setting_writer_internal
     return false;
   }
 
-  bool isValidSettingsStartDisplay(const char *displayText)
-  {
-    return startsWithDisplay(displayText, "0.") ||
-           startsWithDisplay(displayText, "1.") ||
-           startsWithDisplay(displayText, "2.") ||
-           startsWithDisplay(displayText, "3.");
-  }
-
   bool tryParseKey(const char *rawKey, char (&parsedKey)[4])
   {
     if (rawKey == nullptr || !isKnownSettingKey(rawKey))
@@ -62,7 +54,7 @@ namespace setting_writer_internal
     }
 
     const DisplaySnapshot snapshot = getDisplaySnapshot();
-    if (!isValidSettingsStartDisplay(snapshot.text))
+    if (!isStartDisplay(snapshot.text))
     {
       return SettingWriteStatus::InvalidStartDisplay;
     }

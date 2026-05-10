@@ -34,7 +34,6 @@ namespace setting_writer_internal
     extern uint32_t g_lastCompletedMs;
     extern int32_t g_lastCompletedValue;
 
-    bool isValidSettingsStartDisplay(const char *displayText);
     bool tryParseKey(const char *rawKey, char (&parsedKey)[4]);
     void startStep(uint32_t now, uint32_t keyMask);
     bool isWaitCompleted(uint32_t now, uint32_t ms);

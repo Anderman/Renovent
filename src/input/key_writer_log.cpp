@@ -2,6 +2,7 @@
 
 #include <cstring>
 
+#include "display/display_text_utils.h"
 #include "input/keypad.h"
 
 namespace
@@ -17,18 +18,6 @@ namespace
     {
         const String text = activeKeysToString(mask);
         std::strncpy(destination, text.c_str(), sizeof(destination) - 1);
-        destination[sizeof(destination) - 1] = '\0';
-    }
-
-    void copyDisplayText(char (&destination)[9], const char *source)
-    {
-        if (source == nullptr)
-        {
-            destination[0] = '\0';
-            return;
-        }
-
-        std::strncpy(destination, source, sizeof(destination) - 1);
         destination[sizeof(destination) - 1] = '\0';
     }
 

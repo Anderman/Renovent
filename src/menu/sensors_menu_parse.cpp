@@ -7,22 +7,6 @@
 namespace sensors_menu_internal {
 namespace {
 
-bool parseSensorValueForStep(uint8_t step, const char *displayText, int32_t &value)
-{
-    if (step == 7 || step == 8)
-    {
-        const char *firstDot = std::strchr(displayText, '.');
-        if (firstDot == nullptr || firstDot[1] == '\0')
-        {
-            return false;
-        }
-
-        return parseLastNumber(firstDot + 1, value);
-    }
-
-    return parseLastNumber(displayText, value);
-}
-
 uint8_t sensorStepForKey(const char *key)
 {
     if (key == nullptr || key[0] == '\0')
@@ -99,52 +83,6 @@ uint8_t sensorStepForKey(const char *key)
     return 0;
 }
 
-bool parseFirstAndLastNumber(const char *rawValue, int32_t &firstValue, int32_t &lastValue)
-{
-    int32_t currentValue = 0;
-    bool inNumber = false;
-    bool sawNumber = false;
-    bool firstCaptured = false;
-
-    for (uint8_t index = 0; rawValue[index] != '\0'; ++index)
-    {
-        const char current = rawValue[index];
-        if (current >= '0' && current <= '9')
-        {
-            if (!inNumber)
-            {
-                currentValue = 0;
-                inNumber = true;
-            }
-            currentValue = currentValue * 10 + (current - '0');
-            sawNumber = true;
-            continue;
-        }
-
-        if (inNumber)
-        {
-            if (!firstCaptured)
-            {
-                firstValue = currentValue;
-                firstCaptured = true;
-            }
-            lastValue = currentValue;
-            inNumber = false;
-        }
-    }
-
-    if (inNumber)
-    {
-        if (!firstCaptured)
-        {
-            firstValue = currentValue;
-        }
-        lastValue = currentValue;
-    }
-
-    return sawNumber;
-}
-
 void clearLogicalValues(SensorsMenuValueItem (&values)[kLogicalValueCount])
 {
     for (uint8_t index = 0; index < kLogicalValueCount; ++index)
@@ -165,7 +103,7 @@ void setLogicalValue(SensorsMenuValueItem (&values)[kLogicalValueCount], uint8_t
     values[index].value = hasValue ? value : 0;
 }
 
-void captureCurrentStepValue(uint8_t step, const char *displayText)
+void captureCurrentStepValue(uint8_t step, const ParsedSensorEntry &parsedEntry)
 {
     if (step < kFirstSensorsStep || step > kLastSensorsStep)
     {
@@ -175,27 +113,22 @@ void captureCurrentStepValue(uint8_t step, const char *displayText)
     const uint8_t stepIndex = static_cast<uint8_t>(step - 1U);
     SensorsMenuCapturedEntry &entry = g_scanState.entries[stepIndex];
 
-    copyDisplayText(g_scanState.lastDisplayText, displayText);
     g_scanState.currentStep = step;
     entry.available = true;
-    copyDisplayText(entry.rawValue, displayText);
     entry.hasAuxValue = false;
     entry.auxValue = 0;
 
-    int32_t parsedValue = 0;
-    entry.hasValue = parseSensorValueForStep(step, displayText, parsedValue);
-    entry.value = entry.hasValue ? parsedValue : 0;
+    entry.hasValue = parsedEntry.hasValue;
+    entry.value = parsedEntry.hasValue ? parsedEntry.value : 0;
 
     if (step == 1)
     {
-        int32_t firstValue = 0;
-        int32_t lastValue = 0;
-        if (parseFirstAndLastNumber(displayText, firstValue, lastValue))
+        if (parsedEntry.key[0] >= '1' && parsedEntry.key[0] <= '3' && parsedEntry.key[1] == '\0')
         {
             entry.hasValue = true;
-            entry.value = firstValue;
-            entry.hasAuxValue = true;
-            entry.auxValue = lastValue;
+            entry.value = parsedEntry.key[0] - '0';
+            entry.hasAuxValue = parsedEntry.hasValue;
+            entry.auxValue = parsedEntry.hasValue ? parsedEntry.value : 0;
         }
     }
 }
@@ -244,7 +177,7 @@ int8_t ensureUnknownEntryIndex(const char *key)
     return -1;
 }
 
-void captureUnknownEntryValue(const char *key, const char *displayText)
+void captureUnknownEntryValue(const char *key, const char *displayText, const ParsedSensorEntry &parsedEntry)
 {
     const int8_t entryIndex = ensureUnknownEntryIndex(key);
     if (entryIndex < 0)
@@ -254,88 +187,47 @@ void captureUnknownEntryValue(const char *key, const char *displayText)
 
     SensorsMenuUnknownEntry &entry = g_scanState.unknownEntries[static_cast<uint8_t>(entryIndex)];
     copyDisplayText(entry.rawValue, displayText);
-    int32_t parsedValue = 0;
-    entry.hasValue = parseLastNumber(displayText, parsedValue);
-    entry.value = entry.hasValue ? parsedValue : 0;
+    entry.hasValue = parsedEntry.hasValue;
+    entry.value = parsedEntry.hasValue ? parsedEntry.value : 0;
 }
 
 } // namespace
 
-bool parseSensorEntryKey(const char *displayText, char (&key)[4])
+bool captureCurrentEntry(const char *displayText, const ParsedSensorEntry &parsedEntry)
 {
-    if (displayText == nullptr)
+    if (parsedEntry.key[0] == '\0')
     {
         return false;
     }
 
-    uint8_t readIndex = 0;
-    while (displayText[readIndex] == ' ')
+    std::strncpy(g_scanState.currentEntryKey, parsedEntry.key, sizeof(g_scanState.currentEntryKey) - 1);
+    g_scanState.currentEntryKey[sizeof(g_scanState.currentEntryKey) - 1] = '\0';
+    if (g_scanState.firstEntryKey[0] == '\0')
     {
-        ++readIndex;
+        std::strncpy(g_scanState.firstEntryKey, parsedEntry.key, sizeof(g_scanState.firstEntryKey) - 1);
+        g_scanState.firstEntryKey[sizeof(g_scanState.firstEntryKey) - 1] = '\0';
     }
 
-    uint8_t writeIndex = 0;
-    while (displayText[readIndex] != '\0' && writeIndex < sizeof(key) - 1U)
+    const uint8_t step = sensorStepForKey(parsedEntry.key);
+    if (step == 0)
     {
-        const char current = displayText[readIndex++];
-        if (current == ' ')
-        {
-            if (writeIndex == 0)
-            {
-                continue;
-            }
-            break;
-        }
-
-        if (current == '.')
-        {
-            break;
-        }
-
-        if ((current >= 'a' && current <= 'z'))
-        {
-            key[writeIndex++] = static_cast<char>(current - 'a' + 'A');
-            continue;
-        }
-
-        if ((current >= 'A' && current <= 'Z') || (current >= '0' && current <= '9'))
-        {
-            key[writeIndex++] = current;
-            continue;
-        }
-
-        break;
+        captureUnknownEntryValue(parsedEntry.key, displayText, parsedEntry);
+        return true;
     }
 
-    key[writeIndex] = '\0';
-    return writeIndex > 0U;
+    captureCurrentStepValue(step, parsedEntry);
+    return true;
 }
 
 bool captureCurrentEntry(const char *displayText)
 {
-    char parsedKey[4] = {0};
-    if (!parseSensorEntryKey(displayText, parsedKey))
+    ParsedSensorEntry parsedEntry{};
+    if (!parseSensorEntry(displayText, parsedEntry))
     {
         return false;
     }
 
-    std::strncpy(g_scanState.currentEntryKey, parsedKey, sizeof(g_scanState.currentEntryKey) - 1);
-    g_scanState.currentEntryKey[sizeof(g_scanState.currentEntryKey) - 1] = '\0';
-    if (g_scanState.firstEntryKey[0] == '\0')
-    {
-        std::strncpy(g_scanState.firstEntryKey, parsedKey, sizeof(g_scanState.firstEntryKey) - 1);
-        g_scanState.firstEntryKey[sizeof(g_scanState.firstEntryKey) - 1] = '\0';
-    }
-
-    const uint8_t step = sensorStepForKey(parsedKey);
-    if (step == 0)
-    {
-        captureUnknownEntryValue(parsedKey, displayText);
-        return true;
-    }
-
-    captureCurrentStepValue(step, displayText);
-    return true;
+    return captureCurrentEntry(displayText, parsedEntry);
 }
 
 void buildLogicalValues(const SensorsMenuCapturedEntry (&entries)[kSensorsStepCount], SensorsMenuValueItem (&values)[kLogicalValueCount])
@@ -345,18 +237,8 @@ void buildLogicalValues(const SensorsMenuCapturedEntry (&entries)[kSensorsStepCo
     const SensorsMenuCapturedEntry &step1 = entries[0];
     if (step1.available)
     {
-        int32_t firstValue = 0;
-        int32_t lastValue = 0;
-        if (parseFirstAndLastNumber(step1.rawValue, firstValue, lastValue))
-        {
-            setLogicalValue(values, 0, true, true, firstValue);
-            setLogicalValue(values, 1, true, true, lastValue);
-        }
-        else
-        {
-            setLogicalValue(values, 0, true, false, 0);
-            setLogicalValue(values, 1, true, false, 0);
-        }
+        setLogicalValue(values, 0, true, step1.hasValue, step1.value);
+        setLogicalValue(values, 1, true, step1.hasAuxValue, step1.auxValue);
     }
 
     for (uint8_t stepIndex = 1; stepIndex < kSensorsStepCount; ++stepIndex)

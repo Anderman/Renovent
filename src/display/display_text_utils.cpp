@@ -108,6 +108,14 @@ void copyDisplayText(char (&destination)[9], const char *source)
     destination[sizeof(destination) - 1] = '\0';
 }
 
+bool isStartDisplay(const char *displayText)
+{
+    return startsWithDisplay(displayText, "0.") ||
+           startsWithDisplay(displayText, "1.") ||
+           startsWithDisplay(displayText, "2.") ||
+           startsWithDisplay(displayText, "3.");
+}
+
 bool startsWithDisplay(const char *actual, const char *expectedPrefix)
 {
     if (expectedPrefix == nullptr || expectedPrefix[0] == '\0')
@@ -147,7 +155,149 @@ bool startsWithDisplay(const char *actual, const char *expectedPrefix)
     return true;
 }
 
-bool parseSettingKey(const char *displayText, char (&key)[4])
+// Parses the last numeric token from the display into the internal fixed-point
+// integer representation used by the firmware.
+// Examples with 1 decimal precision on the display:
+// .5   -> 5
+// 5.   -> -5
+// -10.5. -> -105
+// - 1.5. -> -15
+bool getNumericValue(const char *rawValue, int32_t &value)
+{
+    if (rawValue == nullptr)
+    {
+        return false;
+    }
+
+    char token[16] = {0};
+    uint8_t tokenLength = 0;
+
+    for (uint8_t index = 0; rawValue[index] != '\0'; ++index)
+    {
+        const char current = rawValue[index];
+        const bool isTokenChar = (current >= '0' && current <= '9') || current == '-' || current == '.';
+
+        if (!isTokenChar)
+        {
+            continue;
+        }
+
+        if (tokenLength < sizeof(token) - 1U)
+        {
+            token[tokenLength++] = current;
+        }
+    }
+
+    if (tokenLength == 0)
+    {
+        return false;
+    }
+
+    int32_t parsedValue = 0;
+    bool sawDigit = false;
+    for (uint8_t index = 0; index < tokenLength; ++index)
+    {
+        const char current = token[index];
+        if (current < '0' || current > '9')
+        {
+            continue;
+        }
+
+        parsedValue = parsedValue * 10 + (current - '0');
+        sawDigit = true;
+    }
+
+    if (!sawDigit)
+    {
+        return false;
+    }
+
+    const bool negative = token[0] == '-' || token[tokenLength - 1U] == '.';
+    value = negative ? -parsedValue : parsedValue;
+    return true;
+}
+
+bool parseSensorEntry(const char *displayText, ParsedSensorEntry &parsedEntry)
+{
+    parsedEntry = ParsedSensorEntry{};
+    if (!getSensorKey(displayText, parsedEntry.key, parsedEntry.valueText))
+    {
+        return false;
+    }
+
+    if (parsedEntry.valueText == nullptr || parsedEntry.valueText[0] == '\0')
+    {
+        return false;
+    }
+
+    parsedEntry.hasValue = getNumericValue(parsedEntry.valueText, parsedEntry.value);
+    return true;
+}
+
+bool getSensorKey(const char *displayText, char (&key)[4], const char *&valueStart)
+{
+    if (displayText == nullptr)
+    {
+        return false;
+    }
+
+    uint8_t readIndex = 0;
+    while (displayText[readIndex] == ' ')
+    {
+        ++readIndex;
+    }
+
+    uint8_t writeIndex = 0;
+    while (displayText[readIndex] != '\0' && writeIndex < sizeof(key) - 1U)
+    {
+        const char current = displayText[readIndex++];
+        if (current == ' ')
+        {
+            if (writeIndex == 0)
+            {
+                continue;
+            }
+            break;
+        }
+
+        if (current == '.')
+        {
+            break;
+        }
+
+        if (current >= 'a' && current <= 'z')
+        {
+            key[writeIndex++] = static_cast<char>(current - 'a' + 'A');
+            continue;
+        }
+
+        if ((current >= 'A' && current <= 'Z') || (current >= '0' && current <= '9'))
+        {
+            key[writeIndex++] = current;
+            continue;
+        }
+
+        break;
+    }
+
+    key[writeIndex] = '\0';
+
+    while (displayText[readIndex] == ' ')
+    {
+        ++readIndex;
+    }
+
+    valueStart = displayText + readIndex;
+    return writeIndex > 0U;
+}
+
+bool getSensorKey(const char *displayText, char (&key)[4])
+{
+    const char *valueStart = nullptr;
+    return getSensorKey(displayText, key, valueStart);
+}
+
+bool getSettingKey(const char *displayText, char (&key)[4])
 {
     if (displayText == nullptr)
     {
@@ -168,95 +318,6 @@ bool parseSettingKey(const char *displayText, char (&key)[4])
     key[writeIndex] = '\0';
     return writeIndex > 0U;
 }
-// Parses the last numeric token from the display into the internal fixed-point
-// integer representation used by the firmware.
-// Examples with 1 decimal precision on the display:
-// .5   -> 5
-// 5.   -> -5
-// -10.5. -> -105
-// - 1.5. -> -15
-bool parseLastNumber(const char *rawValue, int32_t &value)
-{
-    if (rawValue == nullptr)
-    {
-        return false;
-    }
-
-    char compact[16] = {0};
-    uint8_t compactLength = 0;
-    for (uint8_t index = 0; rawValue[index] != '\0' && compactLength < sizeof(compact) - 1U; ++index)
-    {
-        const char current = rawValue[index];
-        if (current == ' ')
-        {
-            continue;
-        }
-
-        compact[compactLength++] = current;
-    }
-    compact[compactLength] = '\0';
-
-    int8_t tokenEnd = -1;
-    for (int8_t index = static_cast<int8_t>(compactLength) - 1; index >= 0; --index)
-    {
-        const char current = compact[index];
-        if ((current >= '0' && current <= '9') || current == '.' || current == '-')
-        {
-            tokenEnd = index;
-            break;
-        }
-    }
-
-    if (tokenEnd < 0)
-    {
-        return false;
-    }
-
-    int8_t tokenStart = tokenEnd;
-    while (tokenStart > 0)
-    {
-        const char current = compact[tokenStart - 1];
-        if ((current >= '0' && current <= '9') || current == '.' || current == '-')
-        {
-            --tokenStart;
-            continue;
-        }
-
-        break;
-    }
-
-    bool negative = false;
-    int32_t parsedValue = 0;
-    bool sawDigit = false;
-    for (int8_t index = tokenStart; index <= tokenEnd; ++index)
-    {
-        const char current = compact[index];
-        if (current >= '0' && current <= '9')
-        {
-            parsedValue = parsedValue * 10 + (current - '0');
-            sawDigit = true;
-            continue;
-        }
-
-        if (current == '-')
-        {
-            negative = true;
-        }
-    }
-
-    if (!sawDigit)
-    {
-        return false;
-    }
-
-    if (compact[tokenEnd] == '.')
-    {
-        negative = true;
-    }
-
-    value = negative ? -parsedValue : parsedValue;
-    return true;
-}
 
 bool getSettingValue(const char *displayText, ParsedSettingValue &value)
 {
@@ -271,7 +332,7 @@ bool getSettingValue(const char *displayText, ParsedSettingValue &value)
     }
 
     int32_t numericValue = 0;
-    if (parseLastNumber(compactDisplayValue, numericValue))
+    if (getNumericValue(compactDisplayValue, numericValue))
     {
         if (!normalizeNumericDisplayValue(value.displayValue, compactDisplayValue))
         {

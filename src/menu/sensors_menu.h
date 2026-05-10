@@ -4,7 +4,6 @@
 
 struct SensorsMenuCapturedEntry {
   bool available;
-  char rawValue[9];
   bool hasValue;
   int32_t value;
   bool hasAuxValue;
@@ -43,8 +42,6 @@ struct SensorsMenuProgress {
   bool running;
   uint8_t currentStep;
   uint32_t lastCompletedMs;
-  char phase[24];
-  char lastDisplayText[9];
 };
 
 struct SensorsMenuSnapshot {

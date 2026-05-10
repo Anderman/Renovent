@@ -150,7 +150,7 @@ namespace setting_writer_internal
                 copyDisplayText(g_state.displayBeforeKeyPress, snapshot.text);
 
                 char displayedKey[4] = {0};
-                if (parseSettingKey(snapshot.text, displayedKey) && std::strncmp(displayedKey, g_state.request.key, sizeof(displayedKey)) == 0)
+                if (getSettingKey(snapshot.text, displayedKey) && std::strncmp(displayedKey, g_state.request.key, sizeof(displayedKey)) == 0)
                 {
                     g_state.invalidDisplayStartedMs = 0;
                     advanceToNextStep();
@@ -183,7 +183,7 @@ namespace setting_writer_internal
             }
 
             char displayedKey[4] = {0};
-            if (!parseSettingKey(snapshot.text, displayedKey))
+            if (!getSettingKey(snapshot.text, displayedKey))
             {
                 updateInvalidDisplayTimer(now);
                 return;
@@ -286,6 +286,7 @@ namespace setting_writer_internal
                 {
                     releaseKeys(now);
                     g_state.adjustTimedOut = true;
+                    g_state.request.targetValue = currentValue;
                     return;
                 }
 

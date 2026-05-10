@@ -88,14 +88,6 @@ namespace
         return kReadScript[g_state.currentStepIndex].phaseName;
     }
 
-    bool isValidSettingsStartDisplay(const char *displayText)
-    {
-        return startsWithDisplay(displayText, "0.") ||
-               startsWithDisplay(displayText, "1.") ||
-               startsWithDisplay(displayText, "2.") ||
-               startsWithDisplay(displayText, "3.");
-    }
-
     int8_t findEntryIndexByKey(const char *key)
     {
         for (uint8_t index = 0; index < g_state.count; ++index)
@@ -167,7 +159,7 @@ namespace
     bool setCurrentEntryKey(const char *displayText)
     {
         char parsedKey[4] = {0};
-        if (!parseSettingKey(displayText, parsedKey))
+        if (!getSettingKey(displayText, parsedKey))
         {
             return false;
         }
@@ -324,7 +316,7 @@ namespace
         case SettingsAction::SelectNextEntry:
         {
             char parsedKey[4] = {0};
-            if (!parseSettingKey(snapshot.text, parsedKey))
+            if (!getSettingKey(snapshot.text, parsedKey))
             {
                 return SettingStepResult::Pending;
             }
@@ -424,7 +416,7 @@ bool requestSettingsMenuRead()
     }
 
     const DisplaySnapshot snapshot = getDisplaySnapshot();
-    if (!isValidSettingsStartDisplay(snapshot.text))
+    if (!isStartDisplay(snapshot.text))
     {
         return false;
     }

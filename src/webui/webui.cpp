@@ -117,9 +117,7 @@ void handleStatus() {
   doc["co2LastSampleMs"] = co2Status.lastSampleMs;
   doc["co2Error"] = co2Status.error;
   doc["sensorsMenuRunning"] = sensorsMenuProgress.running;
-  doc["sensorsMenuPhase"] = sensorsMenuProgress.phase;
   doc["sensorsMenuStep"] = sensorsMenuProgress.currentStep;
-  doc["sensorsMenuDisplay"] = sensorsMenuProgress.lastDisplayText;
   doc["sensorsMenuLastCompletedMs"] = sensorsMenuProgress.lastCompletedMs;
   doc["firmwareBuildId"] = autoUpdateStatus.currentFirmwareBuildId;
   doc["spiffsBuildId"] = autoUpdateStatus.currentSpiffsBuildId;
@@ -187,10 +185,8 @@ void handleSensorsMenuGet() {
 
   JsonDocument doc;
   doc["running"] = sensorsMenuProgress.running;
-  doc["phase"] = sensorsMenuProgress.phase;
   doc["currentStep"] = sensorsMenuProgress.currentStep;
   doc["lastCompletedMs"] = sensorsMenuSnapshot.lastCompletedMs;
-  doc["lastDisplayText"] = sensorsMenuProgress.lastDisplayText;
 
   JsonArray entries = doc["entries"].to<JsonArray>();
   for (uint8_t index = 0; index < (sizeof(sensorsMenuSnapshot.entries) / sizeof(sensorsMenuSnapshot.entries[0])); ++index) {
@@ -201,7 +197,6 @@ void handleSensorsMenuGet() {
     entry["description"] = definition.description;
     entry["remark"] = definition.remark;
     entry["available"] = sensorsMenuSnapshot.entries[index].available;
-    entry["rawValue"] = sensorsMenuSnapshot.entries[index].available ? sensorsMenuSnapshot.entries[index].rawValue : "";
     entry["hasValue"] = sensorsMenuSnapshot.entries[index].hasValue;
     entry["value"] = sensorsMenuSnapshot.entries[index].value;
     entry["hasAuxValue"] = sensorsMenuSnapshot.entries[index].hasAuxValue;

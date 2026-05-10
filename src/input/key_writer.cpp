@@ -145,7 +145,7 @@ void pulseKeys(uint8_t activeKeys, uint32_t holdMs)
   portEXIT_CRITICAL(&g_keyWriterMux);
 }
 
-void keyWriterApplySelectIndexHook(uint8_t selectIndex)
+void onSelectIndexChange(uint8_t selectIndex)
 {
   const bool active = isKeyPhaseActive(g_injectedKeys, selectIndex);
   if (active)

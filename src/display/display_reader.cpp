@@ -10,7 +10,6 @@
 namespace
 {
     constexpr uint8_t kUpperBankBasePin = 32;
-    constexpr uint8_t kAllSelectsSeenMask = 0xFF;
 
     constexpr uint32_t pinMask(uint8_t pin)
     {
@@ -41,14 +40,12 @@ namespace
         uint8_t digitMasks[4] = {0, 0, 0, 0};
     };
 
-    portMUX_TYPE g_displayMux = portMUX_INITIALIZER_UNLOCKED;
     portMUX_TYPE g_frameReadyMux = portMUX_INITIALIZER_UNLOCKED;
 
     FrameState g_isrWorkingFrame;
     FrameState g_lastCompletedFrame;
     FrameState g_readyFrame;
     DisplaySnapshot g_snapshot = {"----"};
-    uint8_t g_snapshotDigitMasks[4] = {0, 0, 0, 0};
     volatile bool g_frameReadyPending = false;
     volatile uint8_t g_isrLastSelectIndex = 0;
 
@@ -82,13 +79,7 @@ namespace
 
     void publishFrame(const FrameState &frame)
     {
-        portENTER_CRITICAL(&g_displayMux);
         renderDisplayText(frame.digitMasks, g_snapshot.text);
-        for (uint8_t digitIndex = 0; digitIndex < 4; ++digitIndex)
-        {
-            g_snapshotDigitMasks[digitIndex] = frame.digitMasks[digitIndex];
-        }
-        portEXIT_CRITICAL(&g_displayMux);
 
         keyWriterOnDisplayChangedHook(g_snapshot.text);
     }
@@ -105,7 +96,7 @@ namespace
         publishFrame(frame);
     }
 
-    void IRAM_ATTR applySampleFromSnapshot(uint8_t selectIndex, uint32_t gpioSnapshot)
+    void IRAM_ATTR applySegment(uint8_t selectIndex, uint32_t gpioSnapshot)
     {
         const uint8_t segmentMask = kSelectToSegmentMask[selectIndex];
 
@@ -151,8 +142,8 @@ namespace
 
         g_isrLastSelectIndex = selectIndex;
 
-        keyWriterApplySelectIndexHook(selectIndex);
-        applySampleFromSnapshot(selectIndex, gpioSnapshot);
+        onSelectIndexChange(selectIndex);
+        applySegment(selectIndex, gpioSnapshot);
 
         if (selectIndex == 7U)
         {
@@ -192,9 +183,5 @@ void displayReaderLoop()
 
 DisplaySnapshot getDisplaySnapshot()
 {
-    DisplaySnapshot snapshot;
-    portENTER_CRITICAL(&g_displayMux);
-    snapshot = g_snapshot;
-    portEXIT_CRITICAL(&g_displayMux);
-    return snapshot;
+    return g_snapshot;
 }
