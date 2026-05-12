@@ -40,6 +40,15 @@ export function fetchStatusData() {
   return getJson('/api/status');
 }
 
+export function openDisplayStream(onDisplayText) {
+  const url = `${window.location.protocol}//${window.location.hostname}:81/display-stream`;
+  const source = new EventSource(url);
+  source.addEventListener('display', (event) => {
+    onDisplayText?.(event.data ?? '');
+  });
+  return source;
+}
+
 export function fetchKeyPressLogData() {
   return getJson('/api/key-press-log');
 }

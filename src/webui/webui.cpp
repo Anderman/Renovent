@@ -16,6 +16,7 @@
 #include "../core/reset_info.h"
 #include "../menu/setting_writer.h"
 #include "../menu/settings_menu.h"
+#include "display_stream_server.h"
 #include "text_log.h"
 
 WebServer server(80);
@@ -461,6 +462,7 @@ bool parseJsonBody(JsonDocument &doc) {
 
 void setupWebUi() {
   g_spiffsOk = SPIFFS.begin(false);
+  setupDisplayStreamServer();
 
   server.on("/api/parameter-definitions", HTTP_GET, handleParameterDefinitions);
   server.on("/api/status", HTTP_GET, handleStatus);
@@ -481,4 +483,5 @@ void setupWebUi() {
 
 void webUiLoop() {
   server.handleClient();
+  displayStreamServerLoop();
 }

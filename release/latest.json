@@ -1,10 +1,10 @@
 {
   "firmware": {
-    "buildId": "20260510T195844Z",
-    "downloadUrl": "https://raw.githubusercontent.com/Anderman/Renovent/main/release/firmware/20260510T195844Z.bin"
+    "buildId": "20260512T165645Z",
+    "downloadUrl": "https://raw.githubusercontent.com/Anderman/Renovent/main/release/firmware/20260512T165645Z.bin"
   },
   "spiffs": {
-    "buildId": "20260510T211102Z",
-    "downloadUrl": "https://raw.githubusercontent.com/Anderman/Renovent/main/release/spiffs/20260510T211102Z.bin"
+    "buildId": "20260512T164054Z",
+    "downloadUrl": "https://raw.githubusercontent.com/Anderman/Renovent/main/release/spiffs/20260512T164054Z.bin"
   }
 }

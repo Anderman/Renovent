@@ -9,6 +9,7 @@
     fetchSettingsMenuData,
     fetchStatusData,
     fetchTextLogData,
+    openDisplayStream,
     postKeyPress,
     postMqttConfigData,
     postSetValue
@@ -91,6 +92,9 @@
     void loadParameterDefinitions();
 
     const refreshTimer = window.setInterval(refreshAll, REFRESH_INTERVAL_MS);
+    const displayStream = openDisplayStream((displayText) => {
+      status = status === null ? { displayText } : { ...status, displayText };
+    });
     const handleHashChange = () => {
       setActiveTab(getInitialTab(), false);
     };
@@ -99,6 +103,7 @@
 
     return () => {
       window.clearInterval(refreshTimer);
+      displayStream.close();
       window.removeEventListener('hashchange', handleHashChange);
       clearLatchedAutoRelease();
     };
