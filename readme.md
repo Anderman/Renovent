@@ -1,4 +1,20 @@
 # Renovent 
+
+## Installatie Screenshot
+![Installatie connector aan flatkabel](Docs/renovent1.jpeg)
+![Co2 sensor plaatsen](Docs/renovent2.jpeg)
+
+## Web interface
+![homepage](Docs/homepage.png)
+![debug](Docs/debugpage.png)
+
+## homeassistant
+![History](Docs/HA-history.png)
+![Controls](Docs/HA-controls.png)
+![Sensors](Docs/HA-sensors.png)
+
+
+# software documentatie
 De originele controller is een display met toetsen en 1 IC
 De IC zet een 3 bit counter om in 8 select lijnen van het display.
 
